@@ -32,27 +32,23 @@ SetupPage {
 
             QGCPalette { id: palette; colorGroupEnabled: true }
 
-            // Older firmwares use THR_MODE, newer use MOT_THST_HOVER
-            property bool _throttleMidExists: controller.parameterExists(-1, "THR_MID")
-            property Fact _hoverTuneParam:  controller.getParameterFact(-1, _throttleMidExists ? "THR_MID" : "MOT_THST_HOVER")
-            property real _hoverTuneMin:    _throttleMidExists ? 200 : 0
-            property real _hoverTuneMax:    _throttleMidExists ? 800 : 1
-            property real _hoverTuneStep:   _throttleMidExists ? 10 : 0.01
+            property bool _rcFeelAvailable:     controller.parameterExists(-1, "RC_FEEL")
+            property bool _atcInputTCAvailable: controller.parameterExists(-1, "ATC_INPUT_TC")
+            property Fact _rcFeel:              controller.getParameterFact(-1, "RC_FEEL", false)
+            property Fact _atcInputTC:          controller.getParameterFact(-1, "ATC_INPUT_TC", false)
+            property Fact _rateRollP:           controller.getParameterFact(-1, "r.ATC_RAT_RLL_P")
+            property Fact _rateRollI:           controller.getParameterFact(-1, "r.ATC_RAT_RLL_I")
+            property Fact _ratePitchP:          controller.getParameterFact(-1, "r.ATC_RAT_PIT_P")
+            property Fact _ratePitchI:          controller.getParameterFact(-1, "r.ATC_RAT_PIT_I")
+            property Fact _rateClimbP:          controller.getParameterFact(-1, "r.PSC_ACCZ_P")
+            property Fact _rateClimbI:          controller.getParameterFact(-1, "r.PSC_ACCZ_I")
 
-            property Fact _rcFeel:          controller.getParameterFact(-1, "RC_FEEL_RP")
-            property Fact _rateRollP:       controller.getParameterFact(-1, "r.ATC_RAT_RLL_P")
-            property Fact _rateRollI:       controller.getParameterFact(-1, "r.ATC_RAT_RLL_I")
-            property Fact _ratePitchP:      controller.getParameterFact(-1, "r.ATC_RAT_PIT_P")
-            property Fact _ratePitchI:      controller.getParameterFact(-1, "r.ATC_RAT_PIT_I")
-            property Fact _rateClimbP:      controller.getParameterFact(-1, "ACCEL_Z_P")
-            property Fact _rateClimbI:      controller.getParameterFact(-1, "ACCEL_Z_I")
-
-            property Fact _ch7Opt:  controller.getParameterFact(-1, "CH7_OPT")
-            property Fact _ch8Opt:  controller.getParameterFact(-1, "CH8_OPT")
-            property Fact _ch9Opt:  controller.getParameterFact(-1, "CH9_OPT")
-            property Fact _ch10Opt: controller.getParameterFact(-1, "CH10_OPT")
-            property Fact _ch11Opt: controller.getParameterFact(-1, "CH11_OPT")
-            property Fact _ch12Opt: controller.getParameterFact(-1, "CH12_OPT")
+            property Fact _ch7Opt:  controller.getParameterFact(-1, "r.RC7_OPTION")
+            property Fact _ch8Opt:  controller.getParameterFact(-1, "r.RC8_OPTION")
+            property Fact _ch9Opt:  controller.getParameterFact(-1, "r.RC9_OPTION")
+            property Fact _ch10Opt: controller.getParameterFact(-1, "r.RC10_OPTION")
+            property Fact _ch11Opt: controller.getParameterFact(-1, "r.RC11_OPTION")
+            property Fact _ch12Opt: controller.getParameterFact(-1, "r.RC12_OPTION")
 
             readonly property int   _firstOptionChannel:    7
             readonly property int   _lastOptionChannel:     12
@@ -75,21 +71,25 @@ SetupPage {
                 // handler which updates your property with the new value, this first value change will trash
                 // your bound values. In order to work around this we don't set the values into the Sliders until
                 // after Qml load is done. We also don't track value changes until Qml load completes.
-                throttleHover.value = _hoverTuneParam.value
                 rollPitch.value = _rateRollP.value
                 climb.value = _rateClimbP.value
-                rcFeel.value = _rcFeel.value
+                if (_rcFeelAvailable) {
+                    rcFeel.value = _rcFeel.value
+                }
+                if (_atcInputTCAvailable) {
+                    atcInputTC.value = _atcInputTC.value
+                }
                 _loadComplete = true
 
                 calcAutoTuneChannel()
             }
 
-            /// The AutoTune switch is stored in one of the CH#_OPT parameters. We need to loop through those
+            /// The AutoTune switch is stored in one of the RC#_OPTION parameters. We need to loop through those
             /// to find them and setup the ui accordindly.
             function calcAutoTuneChannel() {
                 _autoTuneSwitchChannelIndex = 0
                 for (var channel=_firstOptionChannel; channel<=_lastOptionChannel; channel++) {
-                    var optionFact = controller.getParameterFact(-1, "CH" + channel + "_OPT")
+                    var optionFact = controller.getParameterFact(-1, "r.RC" + channel + "_OPTION")
                     if (optionFact.value == _autoTuneOption) {
                         _autoTuneSwitchChannelIndex = channel - _firstOptionChannel + 1
                         break
@@ -101,7 +101,7 @@ SetupPage {
             function setChannelAutoTuneOption(channel) {
                 // First clear any previous settings for AutTune
                 for (var optionChannel=_firstOptionChannel; optionChannel<=_lastOptionChannel; optionChannel++) {
-                    var optionFact = controller.getParameterFact(-1, "CH" + optionChannel + "_OPT")
+                    var optionFact = controller.getParameterFact(-1, "r.RC" + optionChannel + "_OPTION")
                     if (optionFact.value == _autoTuneOption) {
                         optionFact.value = 0
                     }
@@ -109,7 +109,7 @@ SetupPage {
 
                 // Now set the function into the new channel
                 if (channel != 0) {
-                    var optionFact = controller.getParameterFact(-1, "CH" + channel + "_OPT")
+                    var optionFact = controller.getParameterFact(-1, "r.RC" + channel + "_OPTION")
                     optionFact.value = _autoTuneOption
                 }
             }
@@ -141,36 +141,6 @@ SetupPage {
                     anchors.right:      parent.right
                     anchors.top:        parent.top
                     spacing:            _margins
-
-                    Column {
-                        anchors.left:   parent.left
-                        anchors.right:  parent.right
-
-                        QGCLabel {
-                            text:       qsTr("Throttle Hover")
-                            font.family: ScreenTools.demiboldFontFamily
-                        }
-
-                        QGCLabel {
-                            text: qsTr("How much throttle is needed to maintain a steady hover")
-                        }
-
-                        Slider {
-                            id:                 throttleHover
-                            anchors.left:       parent.left
-                            anchors.right:      parent.right
-                            minimumValue:       _hoverTuneMin
-                            maximumValue:       _hoverTuneMax
-                            stepSize:           _hoverTuneStep
-                            tickmarksEnabled:   true
-
-                            onValueChanged: {
-                                if (_loadComplete) {
-                                    _hoverTuneParam.value = value
-                                }
-                            }
-                        }
-                    }
 
                     Column {
                         anchors.left:   parent.left
@@ -240,6 +210,7 @@ SetupPage {
                     Column {
                         anchors.left:   parent.left
                         anchors.right:  parent.right
+                        visible:        _rcFeelAvailable
 
                         QGCLabel {
                             text:       qsTr("RC Roll/Pitch Feel")
@@ -262,6 +233,37 @@ SetupPage {
                             onValueChanged: {
                                 if (_loadComplete) {
                                     _rcFeel.value = value
+                                }
+                            }
+                        }
+                    }
+
+                    Column {
+                        anchors.left:   parent.left
+                        anchors.right:  parent.right
+                        visible:        _atcInputTCAvailable
+
+                        QGCLabel {
+                            text:       qsTr("RC Roll/Pitch Feel")
+                            font.family: ScreenTools.demiboldFontFamily
+                        }
+
+                        QGCLabel {
+                            text: qsTr("Slide to the left for soft control, slide to the right for crisp control")
+                        }
+
+                        Slider {
+                            id:                 atcInputTC
+                            anchors.left:       parent.left
+                            anchors.right:      parent.right
+                            minimumValue:       _atcInputTC.min
+                            maximumValue:       _atcInputTC.max
+                            stepSize:           _atcInputTC.increment
+                            tickmarksEnabled:   true
+
+                            onValueChanged: {
+                                if (_loadComplete) {
+                                    _atcInputTC.value = value
                                 }
                             }
                         }
@@ -366,7 +368,7 @@ SetupPage {
 
                                 QGCLabel {
                                     anchors.baseline:   optCombo.baseline
-                                    text:               qsTr("Channel Option 6 (Tuning):")
+                                    text:               qsTr("RC Channel 6 Option (Tuning):")
                                     //color:            controller.channelOptionEnabled[modelData] ? "yellow" : qgcPal.text
                                 }
 

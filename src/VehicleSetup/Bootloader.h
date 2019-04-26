@@ -16,7 +16,7 @@
 
 #include "FirmwareImage.h"
 
-#include "qextserialport.h"
+#include <QSerialPort>
 
 #include <stdint.h>
 
@@ -33,38 +33,38 @@ public:
     QString errorString(void) { return _errorString; }
     
     /// @brief Opens a port to the bootloader
-    bool open(QextSerialPort* port, const QString portName);
+    bool open(QSerialPort* port, const QString portName);
     
     /// @brief Read a PROTO_SYNC response from the bootloader
     /// @return true: Valid sync response was received
-    bool sync(QextSerialPort* port);
+    bool sync(QSerialPort* port);
     
     /// @brief Erases the current program
-    bool erase(QextSerialPort* port);
+    bool erase(QSerialPort* port);
     
     /// @brief Program the board with the specified image
-    bool program(QextSerialPort* port, const FirmwareImage* image);
+    bool program(QSerialPort* port, const FirmwareImage* image);
     
     /// @brief Verify the board flash.
-    bool verify(QextSerialPort* port, const FirmwareImage* image);
+    bool verify(QSerialPort* port, const FirmwareImage* image);
     
     /// @brief Retrieve a set of board info from the bootloader of PX4 FMU and PX4 Flow boards
     ///     @param bootloaderVersion Returned INFO_BL_REV
     ///     @param boardID Returned INFO_BOARD_ID
     ///     @param flashSize Returned INFO_FLASH_SIZE
-    bool getPX4BoardInfo(QextSerialPort* port, uint32_t& bootloaderVersion, uint32_t& boardID, uint32_t& flashSize);
+    bool getPX4BoardInfo(QSerialPort* port, uint32_t& bootloaderVersion, uint32_t& boardID, uint32_t& flashSize);
     
     /// @brief Retrieve the board id from a 3DR Radio
-    bool get3DRRadioBoardId(QextSerialPort* port, uint32_t& boardID);
+    bool get3DRRadioBoardId(QSerialPort* port, uint32_t& boardID);
     
     /// @brief Sends a PROTO_REBOOT command to the bootloader
-    bool reboot(QextSerialPort* port);
+    bool reboot(QSerialPort* port);
     
     // Supported bootloader board ids
     static const int boardIDPX4FMUV1 = 5;       ///< PX4 V1 board, as from USB PID
     static const int boardIDPX4FMUV2 = 9;       ///< PX4 V2 board, as from USB PID
     static const int boardIDPX4FMUV4 = 11;      ///< PX4 V4 board, as from USB PID
-    static const int boardIDPX4FMUV4PRO = 13;      ///< PX4 V4PRO board, as from USB PID
+    static const int boardIDPX4FMUV4PRO = 13;   ///< PX4 V4PRO board, as from USB PID
     static const int boardIDPX4FMUV5 = 50;      ///< PX4 V5 board, as from USB PID
     static const int boardIDPX4Flow = 6;        ///< PX4 Flow board, as from USB PID
     static const int boardIDAeroCore = 98;      ///< Gumstix AeroCore board, as from USB PID
@@ -74,6 +74,8 @@ public:
     static const int boardIDTAPV1 = 64;         ///< TAP V1 board, as from USB PID
     static const int boardIDASCV1 = 65;         ///< ASC V1 board, as from USB PID
     static const int boardIDCrazyflie2 = 12;    ///< Crazyflie 2.0 board, as from USB PID
+    static const int boardIDOmnibusF4SD = 42;   ///< Omnibus F4 SD, as from USB PID
+    static const int boardIDNXPHliteV3 = 28;    ///< NXPHliteV3 board, as from USB PID
 
     /// Simulated board id for V3 which is a V2 board which supports larger flash space
     /// IMPORTANT: Make sure this id does not conflict with any newly added real board ids
@@ -84,23 +86,23 @@ signals:
     void updateProgress(int curr, int total);
     
 private:
-    bool _binProgram(QextSerialPort* port, const FirmwareImage* image);
-    bool _ihxProgram(QextSerialPort* port, const FirmwareImage* image);
+    bool _binProgram(QSerialPort* port, const FirmwareImage* image);
+    bool _ihxProgram(QSerialPort* port, const FirmwareImage* image);
     
-    bool _write(QextSerialPort* port, const uint8_t* data, qint64 maxSize);
-    bool _write(QextSerialPort* port, const uint8_t byte);
+    bool _write(QSerialPort* port, const uint8_t* data, qint64 maxSize);
+    bool _write(QSerialPort* port, const uint8_t byte);
     
-    bool _read(QextSerialPort* port, uint8_t* data, qint64 maxSize, int readTimeout = _readTimout);
+    bool _read(QSerialPort* port, uint8_t* data, qint64 maxSize, int readTimeout = _readTimout);
     
-    bool _sendCommand(QextSerialPort* port, uint8_t cmd, int responseTimeout = _responseTimeout);
-    bool _getCommandResponse(QextSerialPort* port, const int responseTimeout = _responseTimeout);
+    bool _sendCommand(QSerialPort* port, uint8_t cmd, int responseTimeout = _responseTimeout);
+    bool _getCommandResponse(QSerialPort* port, const int responseTimeout = _responseTimeout);
     
-    bool _getPX4BoardInfo(QextSerialPort* port, uint8_t param, uint32_t& value);
+    bool _getPX4BoardInfo(QSerialPort* port, uint8_t param, uint32_t& value);
     
-    bool _verifyBytes(QextSerialPort* port, const FirmwareImage* image);
-    bool _binVerifyBytes(QextSerialPort* port, const FirmwareImage* image);
-    bool _ihxVerifyBytes(QextSerialPort* port, const FirmwareImage* image);
-    bool _verifyCRC(QextSerialPort* port);
+    bool _verifyBytes(QSerialPort* port, const FirmwareImage* image);
+    bool _binVerifyBytes(QSerialPort* port, const FirmwareImage* image);
+    bool _ihxVerifyBytes(QSerialPort* port, const FirmwareImage* image);
+    bool _verifyCRC(QSerialPort* port);
 
     enum {
         // protocol bytes

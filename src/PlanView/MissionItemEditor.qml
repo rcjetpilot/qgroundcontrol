@@ -15,7 +15,7 @@ import QGroundControl.Palette       1.0
 /// Mission item edit control
 Rectangle {
     id:     _root
-    height: editorLoader.y + (editorLoader.visible ? editorLoader.height : 0) + (_margin * 2)
+    height: editorLoader.visible ? (editorLoader.y + editorLoader.height + (_margin * 2)) : (commandPicker.y + commandPicker.height + _margin / 2)
     color:  _currentItem ? qgcPal.missionItemEditor : qgcPal.windowShade
     radius: _radius
 
@@ -62,12 +62,21 @@ Rectangle {
         }
     }
 
+    Component {
+        id: editPositionDialog
+
+        EditPositionDialog {
+            coordinate: missionItem.coordinate
+            onCoordinateChanged: missionItem.coordinate = coordinate
+        }
+    }
+
     QGCLabel {
         id:                     label
         anchors.verticalCenter: commandPicker.verticalCenter
         anchors.leftMargin:     _margin
         anchors.left:           parent.left
-        text:                   missionItem.homePosition ? "H" : missionItem.sequenceNumber
+        text:                   missionItem.homePosition ? "P" : missionItem.sequenceNumber
         color:                  _outerTextColor
     }
 
@@ -80,9 +89,8 @@ Rectangle {
         height:                 _hamburgerSize
         sourceSize.height:      _hamburgerSize
         source:                 "qrc:/qmlimages/Hamburger.svg"
-        visible:                missionItem.isCurrentItem && missionItem.sequenceNumber != 0
-        color:                  qgcPal.windowShade
-
+        visible:                missionItem.isCurrentItem && missionItem.sequenceNumber !== 0
+        color:                  qgcPal.text
     }
 
     QGCMouseArea {
@@ -133,7 +141,13 @@ Rectangle {
             MenuItem {
                 text:           qsTr("Change command...")
                 onTriggered:    commandPicker.clicked()
-                visible:        !_waypointsOnlyMode
+                visible:        missionItem.isSimpleItem && !_waypointsOnlyMode
+            }
+
+            MenuItem {
+                text:           qsTr("Edit position...")
+                visible:        missionItem.specifiesCoordinate
+                onTriggered:    qgcView.showDialog(editPositionDialog, qsTr("Edit Position"), qgcView.showDialogDefaultWidth, StandardButton.Close)
             }
 
             MenuSeparator {

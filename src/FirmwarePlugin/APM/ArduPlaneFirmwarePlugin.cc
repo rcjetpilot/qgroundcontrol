@@ -21,8 +21,8 @@ APMPlaneMode::APMPlaneMode(uint32_t mode, bool settable)
     enumToString.insert(STABILIZE,      "Stabilize");
     enumToString.insert(TRAINING,       "Training");
     enumToString.insert(ACRO,           "Acro");
-    enumToString.insert(FLY_BY_WIRE_A,  "FWB A");
-    enumToString.insert(FLY_BY_WIRE_B,  "FWB B");
+    enumToString.insert(FLY_BY_WIRE_A,  "FBW A");
+    enumToString.insert(FLY_BY_WIRE_B,  "FBW B");
     enumToString.insert(CRUISE,         "Cruise");
     enumToString.insert(AUTOTUNE,       "Autotune");
     enumToString.insert(AUTO,           "Auto");
@@ -110,12 +110,20 @@ ArduPlaneFirmwarePlugin::ArduPlaneFirmwarePlugin(void)
         remapV3_8["SERVO13_REVERSED"] = QStringLiteral("RC13_REVERSED");
         remapV3_8["SERVO14_REVERSED"] = QStringLiteral("RC14_REVERSED");
 
+        remapV3_8["ARMING_VOLT_MIN"] = QStringLiteral("ARMING_MIN_VOLT");
+        remapV3_8["ARMING_VOLT2_MIN"] = QStringLiteral("ARMING_MIN_VOLT2");
+
+        FirmwarePlugin::remapParamNameMap_t& remapV3_10 = _remapParamName[3][10];
+
+        remapV3_10["BATT_ARM_VOLT"] =    QStringLiteral("ARMING_VOLT_MIN");
+        remapV3_10["BATT2_ARM_VOLT"] =   QStringLiteral("ARMING_VOLT2_MIN");
+
         _remapParamNameIntialized = true;
     }
 }
 
 int ArduPlaneFirmwarePlugin::remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const
 {
-    // Remapping supports up to 3.8
-    return majorVersionNumber == 3 ? 8 : Vehicle::versionNotSetValue;
+    // Remapping supports up to 3.10
+    return majorVersionNumber == 3 ? 10 : Vehicle::versionNotSetValue;
 }

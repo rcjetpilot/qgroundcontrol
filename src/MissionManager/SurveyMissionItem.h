@@ -96,6 +96,7 @@ public:
     // Overrides from ComplexMissionItem
 
     double              complexDistance     (void) const final { return _surveyDistance; }
+    QGCGeoBoundingCube  boundingCube        (void) const final { return _boundingCube; }
     double              additionalTimeDelay (void) const final { return _additionalFlightDelaySeconds; }
     int                 lastSequenceNumber  (void) const final;
     bool                load                (const QJsonObject& complexObject, int sequenceNumber, QString& errorString) final;
@@ -117,6 +118,7 @@ public:
     int             sequenceNumber          (void) const final { return _sequenceNumber; }
     double          specifiedFlightSpeed    (void) final { return std::numeric_limits<double>::quiet_NaN(); }
     double          specifiedGimbalYaw      (void) final { return std::numeric_limits<double>::quiet_NaN(); }
+    double          specifiedGimbalPitch    (void) final { return std::numeric_limits<double>::quiet_NaN(); }
     void            appendMissionItems      (QList<MissionItem*>& items, QObject* missionItemParent) final;
     void            setMissionFlightStatus  (MissionController::MissionFlightStatus_t& missionFlightStatus) final;
     void            applyNewAltitude        (double newAltitude) final;
@@ -198,6 +200,7 @@ private:
     void _intersectLinesWithPolygon(const QList<QLineF>& lineList, const QPolygonF& polygon, QList<QLineF>& resultLines);
     void _adjustLineDirection(const QList<QLineF>& lineList, QList<QLineF>& resultLines);
     void _setSurveyDistance(double surveyDistance);
+    void _setBoundingCube(QGCGeoBoundingCube bc);
     void _setCameraShots(int cameraShots);
     void _setCoveredArea(double coveredArea);
     void _cameraValueChanged(void);
@@ -216,12 +219,13 @@ private:
     qreal _ccw(QPointF pt1, QPointF pt2, QPointF pt3);
     qreal _dp(QPointF pt1, QPointF pt2);
     void _swapPoints(QList<QPointF>& points, int index1, int index2);
-    QList<QPointF> _convexPolygon(const QList<QPointF>& polygon);
     void _reverseTransectOrder(QList<QList<QGeoCoordinate>>& transects);
     void _reverseInternalTransectPoints(QList<QList<QGeoCoordinate>>& transects);
     void _adjustTransectsToEntryPointLocation(QList<QList<QGeoCoordinate>>& transects);
     bool _gridAngleIsNorthSouthTransects();
     double _clampGridAngle90(double gridAngle);
+    int _calcMissionCommandCount(QList<QList<QGeoCoordinate>>& transectSegments);
+    void _calcBoundingCube();
 
     int                             _sequenceNumber;
     bool                            _dirty;
@@ -244,6 +248,7 @@ private:
     double          _timeBetweenShots;
     double          _cruiseSpeed;
 
+    QGCGeoBoundingCube _boundingCube;
     QMap<QString, FactMetaData*> _metaDataMap;
 
     SettingsFact    _manualGridFact;
@@ -294,7 +299,7 @@ private:
     static const char* _jsonFixedValueIsAltitudeKey;
     static const char* _jsonRefly90DegreesKey;
 
-    static const int _hoverAndCaptureDelaySeconds = 1;
+    static const int _hoverAndCaptureDelaySeconds = 4;
 };
 
 #endif

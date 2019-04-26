@@ -26,6 +26,7 @@
 #include <QWaitCondition>
 #include <QMutexLocker>
 #include <QtSql/QSqlDatabase>
+#include <QHostInfo>
 
 #include "QGCLoggingCategory.h"
 
@@ -48,6 +49,9 @@ public:
 
 protected:
     void    run             ();
+
+private slots:
+    void        _lookupReady            (QHostInfo info);
 
 private:
     void        _saveTile               (QGCMapTask* mtask);
@@ -72,6 +76,7 @@ private:
     bool        _createDB               (QSqlDatabase *db, bool createDefault = true);
     quint64     _getDefaultTileSet      ();
     void        _updateTotals           ();
+    void        _deleteTileSet          (qulonglong id);
 
 signals:
     void        updateTotals            (quint32 totaltiles, quint64 totalsize, quint32 defaulttiles, quint64 defaultsize);
@@ -93,6 +98,7 @@ private:
     quint32                 _defaultCount;
     time_t                  _lastUpdate;
     int                     _updateTimeout;
+    int                     _hostLookupID;
 };
 
 #endif // QGC_TILE_CACHE_WORKER_H

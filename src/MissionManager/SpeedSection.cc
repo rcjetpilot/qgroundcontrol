@@ -38,8 +38,11 @@ SpeedSection::SpeedSection(Vehicle* vehicle, QObject* parent)
     _flightSpeedFact.setMetaData(_metaDataMap[_flightSpeedName]);
     _flightSpeedFact.setRawValue(flightSpeed);
 
-    connect(this,               &SpeedSection::specifyFlightSpeedChanged,  this, &SpeedSection::settingsSpecifiedChanged);
-    connect(&_flightSpeedFact,  &Fact::valueChanged,                       this, &SpeedSection::_setDirty);
+    connect(this,               &SpeedSection::specifyFlightSpeedChanged,   this, &SpeedSection::settingsSpecifiedChanged);
+    connect(&_flightSpeedFact,  &Fact::valueChanged,                        this, &SpeedSection::_flightSpeedChanged);
+
+    connect(this,               &SpeedSection::specifyFlightSpeedChanged,   this, &SpeedSection::_updateSpecifiedFlightSpeed);
+    connect(&_flightSpeedFact,  &Fact::valueChanged,                        this, &SpeedSection::_updateSpecifiedFlightSpeed);
 }
 
 bool SpeedSection::settingsSpecified(void) const
@@ -55,11 +58,6 @@ void SpeedSection::setAvailable(bool available)
             emit availableChanged(available);
         }
     }
-}
-
-void SpeedSection::_setDirty(void)
-{
-    setDirty(true);
 }
 
 void SpeedSection::setDirty(bool dirty)
@@ -133,4 +131,26 @@ bool SpeedSection::scanForSection(QmlObjectListModel* visualItems, int scanIndex
     }
 
     return false;
+}
+
+
+double SpeedSection::specifiedFlightSpeed(void) const
+{
+    return _specifyFlightSpeed ? _flightSpeedFact.rawValue().toDouble() : std::numeric_limits<double>::quiet_NaN();
+}
+
+void SpeedSection::_updateSpecifiedFlightSpeed(void)
+{
+    if (_specifyFlightSpeed) {
+        emit specifiedFlightSpeedChanged(specifiedFlightSpeed());
+    }
+}
+
+void SpeedSection::_flightSpeedChanged(void)
+{
+    // We only set the dirty bit if specify flight speed it set. This allows us to change defaults for flight speed
+    // without affecting dirty.
+    if (_specifyFlightSpeed) {
+        setDirty(true);
+    }
 }

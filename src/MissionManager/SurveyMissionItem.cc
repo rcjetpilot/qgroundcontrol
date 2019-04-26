@@ -116,7 +116,8 @@ SurveyMissionItem::SurveyMissionItem(Vehicle* vehicle, QObject* parent)
     // If the user hasn't changed turnaround from the default (which is a fixed wing default) and we are multi-rotor set the multi-rotor default.
     // NULL check since object creation during unit testing passes NULL for vehicle
     if (_vehicle && _vehicle->multiRotor() && _turnaroundDistFact.rawValue().toDouble() == _turnaroundDistFact.rawDefaultValue().toDouble()) {
-        _turnaroundDistFact.setRawValue(5);
+        // Note this is set to 10 meters to work around a problem with PX4 Pro turnaround behavior. Don't change unless firmware gets better as well.
+        _turnaroundDistFact.setRawValue(10);
     }
 
     // We override the grid altitude to the mission default
@@ -158,7 +159,15 @@ void SurveyMissionItem::_setSurveyDistance(double surveyDistance)
 {
     if (!qFuzzyCompare(_surveyDistance, surveyDistance)) {
         _surveyDistance = surveyDistance;
-        emit complexDistanceChanged(_surveyDistance);
+        emit complexDistanceChanged();
+    }
+}
+
+void SurveyMissionItem::_setBoundingCube(QGCGeoBoundingCube bc)
+{
+    if (bc != _boundingCube) {
+        _boundingCube = bc;
+        emit boundingCubeChanged();
     }
 }
 
@@ -229,6 +238,7 @@ void SurveyMissionItem::save(QJsonArray&  missionItems)
     saveObject[_jsonHoverAndCaptureKey] =                       _hoverAndCaptureFact.rawValue().toBool();
     saveObject[_jsonRefly90DegreesKey] =                        _refly90Degrees;
     saveObject[_jsonCameraTriggerDistanceKey] =                 _cameraTriggerDistanceFact.rawValue().toDouble();
+    saveObject[_jsonCameraTriggerInTurnaroundKey] =             _cameraTriggerInTurnaroundFact.rawValue().toBool();
 
     QJsonObject gridObject;
     gridObject[_jsonGridAltitudeKey] =          _gridAltitudeFact.rawValue().toDouble();
@@ -309,6 +319,7 @@ bool SurveyMissionItem::load(const QJsonObject& complexObject, int sequenceNumbe
         { _jsonFixedValueIsAltitudeKey,                 QJsonValue::Bool,   true },
         { _jsonHoverAndCaptureKey,                      QJsonValue::Bool,   false },
         { _jsonRefly90DegreesKey,                       QJsonValue::Bool,   false },
+        { _jsonCameraTriggerInTurnaroundKey,            QJsonValue::Bool,   false },    // Should really be required, but it was missing from initial code due to bug
     };
     if (!JsonHelper::validateKeys(v2Object, mainKeyInfoList, errorString)) {
         return false;
@@ -327,10 +338,11 @@ bool SurveyMissionItem::load(const QJsonObject& complexObject, int sequenceNumbe
 
     setSequenceNumber(sequenceNumber);
 
-    _manualGridFact.setRawValue             (v2Object[_jsonManualGridKey].toBool(true));
-    _fixedValueIsAltitudeFact.setRawValue   (v2Object[_jsonFixedValueIsAltitudeKey].toBool(true));
-    _gridAltitudeRelativeFact.setRawValue   (v2Object[_jsonGridAltitudeRelativeKey].toBool(true));
-    _hoverAndCaptureFact.setRawValue        (v2Object[_jsonHoverAndCaptureKey].toBool(false));
+    _manualGridFact.setRawValue                 (v2Object[_jsonManualGridKey].toBool(true));
+    _fixedValueIsAltitudeFact.setRawValue       (v2Object[_jsonFixedValueIsAltitudeKey].toBool(true));
+    _gridAltitudeRelativeFact.setRawValue       (v2Object[_jsonGridAltitudeRelativeKey].toBool(true));
+    _hoverAndCaptureFact.setRawValue            (v2Object[_jsonHoverAndCaptureKey].toBool(false));
+    _cameraTriggerInTurnaroundFact.setRawValue  (v2Object[_jsonCameraTriggerInTurnaroundKey].toBool(true));
 
     _refly90Degrees = v2Object[_jsonRefly90DegreesKey].toBool(false);
 
@@ -550,53 +562,6 @@ void SurveyMissionItem::_swapPoints(QList<QPointF>& points, int index1, int inde
     points[index2] = temp;
 }
 
-QList<QPointF> SurveyMissionItem::_convexPolygon(const QList<QPointF>& polygon)
-{
-    // We use the Graham scan algorithem to convert the possibly concave polygon to a convex polygon
-    // https://en.wikipedia.org/wiki/Graham_scan
-
-    QList<QPointF> workPolygon(polygon);
-
-    // First point must be lowest y-coordinate point
-    for (int i=1; i<workPolygon.count(); i++) {
-        if (workPolygon[i].y() < workPolygon[0].y()) {
-            _swapPoints(workPolygon, i, 0);
-        }
-    }
-
-    // Sort the points by angle with first point
-    for (int i=1; i<workPolygon.count(); i++) {
-        qreal angle = _dp(workPolygon[0], workPolygon[i]);
-        for (int j=i+1; j<workPolygon.count(); j++) {
-            if (_dp(workPolygon[0], workPolygon[j]) > angle) {
-                _swapPoints(workPolygon, i, j);
-                angle = _dp(workPolygon[0], workPolygon[j]);
-            }
-        }
-    }
-
-    // Perform the the Graham scan
-
-    workPolygon.insert(0, workPolygon.last());  // Sentinel for algo stop
-    int convexCount = 1;                        // Number of points on the convex hull.
-
-    for (int i=2; i<=polygon.count(); i++) {
-        while (_ccw(workPolygon[convexCount-1], workPolygon[convexCount], workPolygon[i]) <= 0) {
-            if (convexCount > 1) {
-                convexCount -= 1;
-            } else if (i == polygon.count()) {
-                break;
-            } else {
-                i++;
-            }
-        }
-        convexCount++;
-        _swapPoints(workPolygon, convexCount, i);
-    }
-
-    return workPolygon.mid(1, convexCount);
-}
-
 /// Returns true if the current grid angle generates north/south oriented transects
 bool SurveyMissionItem::_gridAngleIsNorthSouthTransects()
 {
@@ -611,67 +576,71 @@ void SurveyMissionItem::_adjustTransectsToEntryPointLocation(QList<QList<QGeoCoo
         return;
     }
 
-    // First determine what location the current entry point is at
-
-    QGeoCoordinate& firstTransectEntry = transects.first().first();
-    QGeoCoordinate& firstTransectExit = transects.first().last();
-    QGeoCoordinate& lastTransectExit = transects.last().last();
-
-    bool northSouthTransects = _gridAngleIsNorthSouthTransects();
-    bool entryPointBottom;
-    bool entryPointLeft;
-
-    qCDebug(SurveyMissionItemLog) << "Original entry point" << transects.first().first();
-    qCDebug(SurveyMissionItemLog) << "northSouthTransects" << northSouthTransects;
-
-    if (northSouthTransects) {
-        double firstTransectAzimuth = firstTransectEntry.azimuthTo(firstTransectExit);
-        qCDebug(SurveyMissionItemLog) << "firstTransectAzimuth" << firstTransectAzimuth;
-        entryPointBottom = (firstTransectAzimuth >= 0.0 && firstTransectAzimuth < 90.0) || (firstTransectAzimuth > 270.0 && firstTransectAzimuth <= 360.0);
-        qCDebug(SurveyMissionItemLog) << (entryPointBottom ? "Entry point is at bottom" : "Entry point is at top");
-
-        double entryToExitAzimuth = firstTransectEntry.azimuthTo(lastTransectExit);
-        qCDebug(SurveyMissionItemLog) << "entryToExitAzimuth" << entryToExitAzimuth;
-        entryPointLeft = entryToExitAzimuth <= 180.0;
-        qCDebug(SurveyMissionItemLog) << (entryPointLeft ? "Entry point is at left" : "Entry point is at right");
-    } else {
-        double firstTransectAzimuth = firstTransectEntry.azimuthTo(firstTransectExit);
-        qCDebug(SurveyMissionItemLog) << "firstTransectAzimuth" << firstTransectAzimuth;
-        entryPointLeft = firstTransectAzimuth <= 180.0;
-        qCDebug(SurveyMissionItemLog) << (entryPointLeft ? "Entry point is at left" : "Entry point is at right");
-
-        double entryToExitAzimuth = firstTransectEntry.azimuthTo(lastTransectExit);
-        qCDebug(SurveyMissionItemLog) << "entryToExitAzimuth" << entryToExitAzimuth;
-        entryPointBottom = (entryToExitAzimuth >= 0.0 && entryToExitAzimuth < 90.0) || (entryToExitAzimuth > 270.0 && entryToExitAzimuth <= 360.0);
-        qCDebug(SurveyMissionItemLog) << (entryPointBottom ? "Entry point is at bottom" : "Entry point is at top");
-    }
-
-    // Now adjust the transects such that the entry point matches the requested location
-
     int entryLocation = _gridEntryLocationFact.rawValue().toInt();
-    bool reverseTransects;
-    bool reversePoints;
-    if (northSouthTransects) {
-        reversePoints = ((entryLocation == EntryLocationTopLeft || entryLocation == EntryLocationTopRight) && entryPointBottom) ||
-                ((entryLocation == EntryLocationBottomLeft || entryLocation == EntryLocationBottomRight) && !entryPointBottom);
-        reverseTransects = ((entryLocation == EntryLocationTopRight || entryLocation == EntryLocationBottomRight) && entryPointLeft) ||
-                ((entryLocation == EntryLocationTopLeft || entryLocation == EntryLocationBottomLeft) && !entryPointLeft);
-    } else {
-        reverseTransects = ((entryLocation == EntryLocationTopLeft || entryLocation == EntryLocationTopRight) && entryPointBottom) ||
-                ((entryLocation == EntryLocationBottomLeft || entryLocation == EntryLocationBottomRight) && !entryPointBottom);
-        reversePoints = ((entryLocation == EntryLocationTopRight || entryLocation == EntryLocationBottomRight) && entryPointLeft) ||
-                ((entryLocation == EntryLocationTopLeft || entryLocation == EntryLocationBottomLeft) && !entryPointLeft);
+    bool reversePoints = false;
+    bool reverseTransects = false;
+
+    if (entryLocation == EntryLocationBottomLeft || entryLocation == EntryLocationBottomRight) {
+        reversePoints = true;
     }
+    if (entryLocation == EntryLocationTopRight || entryLocation == EntryLocationBottomRight) {
+        reverseTransects = true;
+    }
+
     if (reversePoints) {
         qCDebug(SurveyMissionItemLog) << "Reverse Points";
         _reverseInternalTransectPoints(transects);
     }
     if (reverseTransects) {
-        // The only way we should end up here is if there is a bug in the original grid line generation
-        qCDebug(SurveyMissionItemLog) << "Not Reverse Transects";
-        //_reverseTransectOrder(transects);
+        qCDebug(SurveyMissionItemLog) << "Reverse Transects";
+        _reverseTransectOrder(transects);
     }
+
     qCDebug(SurveyMissionItemLog) << "Modified entry point" << transects.first().first();
+}
+
+int SurveyMissionItem::_calcMissionCommandCount(QList<QList<QGeoCoordinate>>& transectSegments)
+{
+    int missionCommandCount= 0;
+    for (int i=0; i<transectSegments.count(); i++) {
+        const QList<QGeoCoordinate>& transectSegment = transectSegments[i];
+
+        missionCommandCount += transectSegment.count();    // This accounts for all waypoints
+        if (_hoverAndCaptureEnabled()) {
+            // Internal camera trigger points are entry point, plus all points before exit point
+            missionCommandCount += transectSegment.count() - (_hasTurnaround() ? 2 : 0) - 1;
+        } else if (_triggerCamera() && !_imagesEverywhere()) {
+            // Camera on/off at entry/exit of each transect
+            missionCommandCount += 2;
+        }
+    }
+    if (transectSegments.count() && _triggerCamera() && _imagesEverywhere()) {
+         // Camera on/off for entire survey
+        missionCommandCount += 2;
+    }
+
+    return missionCommandCount;
+}
+
+void SurveyMissionItem::_calcBoundingCube()
+{
+    // Calc bounding cube
+    double north = 0.0;
+    double south = 180.0;
+    double east  = 0.0;
+    double west  = 360.0;
+    for (int i = 0; i < _simpleGridPoints.count(); i++) {
+        QGeoCoordinate coord = _simpleGridPoints[i].value<QGeoCoordinate>();
+        double lat = coord.latitude()  + 90.0;
+        double lon = coord.longitude() + 180.0;
+        north  = fmax(north, lat);
+        south  = fmin(south, lat);
+        east   = fmax(east,  lon);
+        west   = fmin(west,  lon);
+    }
+    _setBoundingCube(QGCGeoBoundingCube(
+        QGeoCoordinate(north - 90.0, west - 180.0, _gridAltitudeFact.rawValue().toDouble()),
+        QGeoCoordinate(south - 90.0, east - 180.0, _gridAltitudeFact.rawValue().toDouble())));
 }
 
 void SurveyMissionItem::_generateGrid(void)
@@ -709,8 +678,6 @@ void SurveyMissionItem::_generateGrid(void)
         qCDebug(SurveyMissionItemLog) << "vertex:x:y" << vertex << polygonPoints.last().x() << polygonPoints.last().y();
     }
 
-    polygonPoints = _convexPolygon(polygonPoints);
-
     double coveredArea = 0.0;
     for (int i=0; i<polygonPoints.count(); i++) {
         if (i != 0) {
@@ -728,8 +695,6 @@ void SurveyMissionItem::_generateGrid(void)
     _adjustTransectsToEntryPointLocation(_transectSegments);
     _appendGridPointsFromTransects(_transectSegments);
     if (_refly90Degrees) {
-        QVariantList reflyPointsGeo;
-
         transectSegments.clear();
         cameraShots += _gridGenerator(polygonPoints, transectSegments, true /* refly */);
         _convertTransectToGeo(transectSegments, tangentOrigin, _reflyTransectSegments);
@@ -739,39 +704,32 @@ void SurveyMissionItem::_generateGrid(void)
 
     // Calc survey distance
     double surveyDistance = 0.0;
-    for (int i=1; i<_simpleGridPoints.count(); i++) {
+    for (int i = 1; i < _simpleGridPoints.count(); i++) {
         QGeoCoordinate coord1 = _simpleGridPoints[i-1].value<QGeoCoordinate>();
         QGeoCoordinate coord2 = _simpleGridPoints[i].value<QGeoCoordinate>();
         surveyDistance += coord1.distanceTo(coord2);
     }
     _setSurveyDistance(surveyDistance);
+    // Calc bounding cube
+    _calcBoundingCube();
 
     if (cameraShots == 0 && _triggerCamera()) {
-        cameraShots = (int)ceil(surveyDistance / _triggerDistance());
+        cameraShots = (int)floor(surveyDistance / _triggerDistance());
+        // Take into account immediate camera trigger at waypoint entry
+        cameraShots++;
     }
     _setCameraShots(cameraShots);
 
     if (_hoverAndCaptureEnabled()) {
         _additionalFlightDelaySeconds = cameraShots * _hoverAndCaptureDelaySeconds;
     }
-    emit additionalTimeDelayChanged(_additionalFlightDelaySeconds);
+    emit additionalTimeDelayChanged();
 
     emit gridPointsChanged();
 
     // Determine command count for lastSequenceNumber
-
-    _missionCommandCount= 0;
-    for (int i=0; i<_transectSegments.count(); i++) {
-        const QList<QGeoCoordinate>& transectSegment = _transectSegments[i];
-
-        _missionCommandCount += transectSegment.count();    // This accounts for all waypoints
-        if (_hoverAndCaptureEnabled()) {
-            // Internal camera trigger points are entry point, plus all points before exit point
-            _missionCommandCount += transectSegment.count() - (_hasTurnaround() ? 2 : 0) - 1;
-        } else if (_triggerCamera()) {
-            _missionCommandCount += 2;                          // Camera on/off at entry/exit
-        }
-    }
+    _missionCommandCount = _calcMissionCommandCount(_transectSegments);
+    _missionCommandCount += _calcMissionCommandCount(_reflyTransectSegments);
     emit lastSequenceNumberChanged(lastSequenceNumber());
 
     // Set exit coordinate
@@ -867,28 +825,41 @@ void SurveyMissionItem::_intersectLinesWithRect(const QList<QLineF>& lineList, c
 void SurveyMissionItem::_intersectLinesWithPolygon(const QList<QLineF>& lineList, const QPolygonF& polygon, QList<QLineF>& resultLines)
 {
     resultLines.clear();
-    for (int i=0; i<lineList.count(); i++) {
-        int foundCount = 0;
-        QLineF intersectLine;
-        const QLineF& line = lineList[i];
 
+    for (int i=0; i<lineList.count(); i++) {
+        const QLineF& line = lineList[i];
+        QList<QPointF> intersections;
+
+        // Intersect the line with all the polygon edges
         for (int j=0; j<polygon.count()-1; j++) {
             QPointF intersectPoint;
             QLineF polygonLine = QLineF(polygon[j], polygon[j+1]);
             if (line.intersect(polygonLine, &intersectPoint) == QLineF::BoundedIntersection) {
-                if (foundCount == 0) {
-                    foundCount++;
-                    intersectLine.setP1(intersectPoint);
-                } else {
-                    foundCount++;
-                    intersectLine.setP2(intersectPoint);
-                    break;
-                }
+                intersections.append(intersectPoint);
             }
         }
 
-        if (foundCount == 2) {
-            resultLines += intersectLine;
+        // We now have one or more intersection points all along the same line. Find the two
+        // which are furthest away from each other to form the transect.
+        if (intersections.count() > 1) {
+            QPointF firstPoint;
+            QPointF secondPoint;
+            double currentMaxDistance = 0;
+
+            for (int i=0; i<intersections.count(); i++) {
+                for (int j=0; j<intersections.count(); j++) {
+                    QLineF lineTest(intersections[i], intersections[j]);
+\
+                    double newMaxDistance = lineTest.length();
+                    if (newMaxDistance > currentMaxDistance) {
+                        firstPoint = intersections[i];
+                        secondPoint = intersections[j];
+                        currentMaxDistance = newMaxDistance;
+                    }
+                }
+            }
+
+            resultLines += QLineF(firstPoint, secondPoint);
         }
     }
 }
@@ -951,86 +922,28 @@ int SurveyMissionItem::_gridGenerator(const QList<QPointF>& polygonPoints,  QLis
         polygon << polygonPoints[i];
     }
     polygon << polygonPoints[0];
-    QRectF smallBoundRect = polygon.boundingRect();
-    QPointF boundingCenter = smallBoundRect.center();
-    qCDebug(SurveyMissionItemLog) << "Bounding rect" << smallBoundRect.topLeft().x() << smallBoundRect.topLeft().y() << smallBoundRect.bottomRight().x() << smallBoundRect.bottomRight().y();
-
-    // Rotate the bounding rect around it's center to generate the larger bounding rect
-    QPolygonF boundPolygon;
-    boundPolygon << _rotatePoint(smallBoundRect.topLeft(),      boundingCenter, gridAngle);
-    boundPolygon << _rotatePoint(smallBoundRect.topRight(),     boundingCenter, gridAngle);
-    boundPolygon << _rotatePoint(smallBoundRect.bottomRight(),  boundingCenter, gridAngle);
-    boundPolygon << _rotatePoint(smallBoundRect.bottomLeft(),   boundingCenter, gridAngle);
-    boundPolygon << boundPolygon[0];
-    QRectF largeBoundRect = boundPolygon.boundingRect();
-    qCDebug(SurveyMissionItemLog) << "Rotated bounding rect" << largeBoundRect.topLeft().x() << largeBoundRect.topLeft().y() << largeBoundRect.bottomRight().x() << largeBoundRect.bottomRight().y();
+    QRectF boundingRect = polygon.boundingRect();
+    QPointF boundingCenter = boundingRect.center();
+    qCDebug(SurveyMissionItemLog) << "Bounding rect" << boundingRect.topLeft().x() << boundingRect.topLeft().y() << boundingRect.bottomRight().x() << boundingRect.bottomRight().y();
 
     // Create set of rotated parallel lines within the expanded bounding rect. Make the lines larger than the
     // bounding box to guarantee intersection.
 
     QList<QLineF> lineList;
-    bool northSouthTransects = _gridAngleIsNorthSouthTransects();
-    int entryLocation = _gridEntryLocationFact.rawValue().toInt();
 
-    if (northSouthTransects) {
-        qCDebug(SurveyMissionItemLog) << "Clamped grid angle" << gridAngle;
-        if (entryLocation == EntryLocationTopLeft || entryLocation == EntryLocationBottomLeft) {
-            // Generate transects from left to right
-            qCDebug(SurveyMissionItemLog) << "Generate left to right";
-            float x = largeBoundRect.topLeft().x() - (gridSpacing / 2);
-            while (x < largeBoundRect.bottomRight().x()) {
-                float yTop =    largeBoundRect.topLeft().y() - 10000.0;
-                float yBottom = largeBoundRect.bottomRight().y() + 10000.0;
+    // Transects are generated to be as long as the largest width/height of the bounding rect plus some fudge factor.
+    // This way they will always be guaranteed to intersect with a polygon edge no matter what angle they are rotated to.
+    // They are initially generated with the transects flowing from west to east and then points within the transect north to south.
+    double maxWidth = qMax(boundingRect.width(), boundingRect.height()) + 2000.0;
+    double halfWidth = maxWidth / 2.0;
+    double transectX = boundingCenter.x() - halfWidth;
+    double transectXMax = transectX + maxWidth;
+    while (transectX < transectXMax) {
+        double transectYTop = boundingCenter.y() - halfWidth;
+        double transectYBottom = boundingCenter.y() + halfWidth;
 
-                lineList += QLineF(_rotatePoint(QPointF(x, yTop), boundingCenter, gridAngle), _rotatePoint(QPointF(x, yBottom), boundingCenter, gridAngle));
-                qCDebug(SurveyMissionItemLog) << "line(" << lineList.last().x1() << ", " << lineList.last().y1() << ")-(" << lineList.last().x2() <<", " << lineList.last().y2() << ")";
-
-                x += gridSpacing;
-            }
-        } else {
-            // Generate transects from right to left
-            qCDebug(SurveyMissionItemLog) << "Generate right to left";
-            float x = largeBoundRect.topRight().x() + (gridSpacing / 2);
-            while (x > largeBoundRect.bottomLeft().x()) {
-                float yTop =    largeBoundRect.topRight().y() - 10000.0;
-                float yBottom = largeBoundRect.bottomLeft().y() + 10000.0;
-
-                lineList += QLineF(_rotatePoint(QPointF(x, yTop), boundingCenter, gridAngle), _rotatePoint(QPointF(x, yBottom), boundingCenter, gridAngle));
-                qCDebug(SurveyMissionItemLog) << "line(" << lineList.last().x1() << ", " << lineList.last().y1() << ")-(" << lineList.last().x2() <<", " << lineList.last().y2() << ")";
-
-                x -= gridSpacing;
-            }
-        }
-    } else {
-        gridAngle = _clampGridAngle90(gridAngle - 90.0);
-        qCDebug(SurveyMissionItemLog) << "Clamped grid angle" << gridAngle;
-        if (entryLocation == EntryLocationTopLeft || entryLocation == EntryLocationTopRight) {
-            // Generate transects from top to bottom
-            qCDebug(SurveyMissionItemLog) << "Generate top to bottom";
-            float y = largeBoundRect.bottomLeft().y() + (gridSpacing / 2);
-            while (y > largeBoundRect.topRight().y()) {
-                float xLeft =   largeBoundRect.bottomLeft().x() - 10000.0;
-                float xRight =  largeBoundRect.topRight().x() + 10000.0;
-
-                lineList += QLineF(_rotatePoint(QPointF(xLeft, y), boundingCenter, gridAngle), _rotatePoint(QPointF(xRight, y), boundingCenter, gridAngle));
-                qCDebug(SurveyMissionItemLog) << "y:xLeft:xRight" << y << xLeft << xRight << "line(" << lineList.last().x1() << ", " << lineList.last().y1() << ")-(" << lineList.last().x2() <<", " << lineList.last().y2() << ")";
-
-                y -= gridSpacing;
-            }
-        } else {
-            // Generate transects from bottom to top
-            qCDebug(SurveyMissionItemLog) << "Generate bottom to top";
-            float y = largeBoundRect.topLeft().y() - (gridSpacing / 2);
-            while (y < largeBoundRect.bottomRight().y()) {
-                float xLeft =   largeBoundRect.topLeft().x() - 10000.0;
-                float xRight =  largeBoundRect.bottomRight().x() + 10000.0;
-
-                lineList += QLineF(_rotatePoint(QPointF(xLeft, y), boundingCenter, gridAngle), _rotatePoint(QPointF(xRight, y), boundingCenter, gridAngle));
-                qCDebug(SurveyMissionItemLog) << "y:xLeft:xRight" << y << xLeft << xRight << "line(" << lineList.last().x1() << ", " << lineList.last().y1() << ")-(" << lineList.last().x2() <<", " << lineList.last().y2() << ")";
-
-                y += gridSpacing;
-            }
-        }
+        lineList += QLineF(_rotatePoint(QPointF(transectX, transectYTop), boundingCenter, gridAngle), _rotatePoint(QPointF(transectX, transectYBottom), boundingCenter, gridAngle));
+        transectX += gridSpacing;
     }
 
     // Now intersect the lines with the polygon
@@ -1065,7 +978,9 @@ int SurveyMissionItem::_gridGenerator(const QList<QPointF>& polygonPoints,  QLis
     // Calc camera shots here if there are no images in turnaround
     if (_triggerCamera() && !_imagesEverywhere()) {
         for (int i=0; i<resultLines.count(); i++) {
-            cameraShots += (int)ceil(resultLines[i].length() / _triggerDistance());
+            cameraShots += (int)floor(resultLines[i].length() / _triggerDistance());
+            // Take into account immediate camera trigger at waypoint entry
+            cameraShots++;
         }
     }
 
@@ -1157,7 +1072,7 @@ int SurveyMissionItem::_appendWaypointToMission(QList<MissionItem*>& items, int 
         item = new MissionItem(seqNum++,
                                MAV_CMD_IMAGE_START_CAPTURE,
                                MAV_FRAME_MISSION,
-                               0,                           // Camera ID, all cameras
+                               0,                           // Reserved (Set to 0)
                                0,                           // Interval (none)
                                1,                           // Take 1 photo
                                NAN, NAN, NAN, NAN,          // param 4-7 reserved
@@ -1207,7 +1122,7 @@ bool SurveyMissionItem::_appendMissionItemsWorker(QList<MissionItem*>& items, QO
 {
     bool firstWaypointTrigger = false;
 
-    qCDebug(SurveyMissionItemLog) << "hasTurnaround:triggerCamera:hoverAndCapture:imagesEverywhere:hasRefly:buildRefly" << _hasTurnaround() << _triggerCamera() << _hoverAndCaptureEnabled() << _imagesEverywhere() << hasRefly << buildRefly;
+    qCDebug(SurveyMissionItemLog) << QStringLiteral("hasTurnaround(%1) triggerCamera(%2) hoverAndCapture(%3) imagesEverywhere(%4) hasRefly(%5) buildRefly(%6) ").arg(_hasTurnaround()).arg(_triggerCamera()).arg(_hoverAndCaptureEnabled()).arg(_imagesEverywhere()).arg(hasRefly).arg(buildRefly);
 
     QList<QList<QGeoCoordinate>>& transectSegments = buildRefly ? _reflyTransectSegments : _transectSegments;
 
@@ -1318,7 +1233,7 @@ double SurveyMissionItem::timeBetweenShots(void) const
     return _cruiseSpeed == 0 ? 0 : _triggerDistance() / _cruiseSpeed;
 }
 
-void SurveyMissionItem::setMissionFlightStatus  (MissionController::MissionFlightStatus_t& missionFlightStatus)
+void SurveyMissionItem::setMissionFlightStatus(MissionController::MissionFlightStatus_t& missionFlightStatus)
 {
     ComplexMissionItem::setMissionFlightStatus(missionFlightStatus);
     if (!qFuzzyCompare(_cruiseSpeed, missionFlightStatus.vehicleSpeed)) {
@@ -1370,6 +1285,7 @@ void SurveyMissionItem::applyNewAltitude(double newAltitude)
 {
     _fixedValueIsAltitudeFact.setRawValue(true);
     _gridAltitudeFact.setRawValue(newAltitude);
+    _calcBoundingCube();
 }
 
 void SurveyMissionItem::setRefly90Degrees(bool refly90Degrees)

@@ -32,7 +32,7 @@ void QGCMapPolygonTest::init(void)
     _rgModelSignals[modelCountChangedIndex] = SIGNAL(countChanged(int));
     _rgModelSignals[modelDirtyChangedIndex] = SIGNAL(dirtyChanged(bool));
 
-    _mapPolygon = new QGCMapPolygon(this, this);
+    _mapPolygon = new QGCMapPolygon(this);
     _pathModel = _mapPolygon->qmlPathModel();
     QVERIFY(_pathModel);
 
@@ -122,7 +122,12 @@ void QGCMapPolygonTest::_testVertexManipulation(void)
         QCOMPARE(_mapPolygon->count(), i);
 
         _mapPolygon->appendVertex(_polyPoints[i]);
-        QVERIFY(_multiSpyPolygon->checkOnlySignalByMask(pathChangedMask | polygonDirtyChangedMask | polygonCountChangedMask | centerChangedMask));
+        if (i >= 2) {
+            // Center is no recalculated until there are 3 points or more
+            QVERIFY(_multiSpyPolygon->checkOnlySignalByMask(pathChangedMask | polygonDirtyChangedMask | polygonCountChangedMask | centerChangedMask));
+        } else {
+            QVERIFY(_multiSpyPolygon->checkOnlySignalByMask(pathChangedMask | polygonDirtyChangedMask | polygonCountChangedMask));
+        }
         QVERIFY(_multiSpyModel->checkOnlySignalByMask(modelDirtyChangedMask | modelCountChangedMask));
         QCOMPARE(_multiSpyPolygon->pullIntFromSignalIndex(polygonCountChangedIndex), i+1);
         QCOMPARE(_multiSpyModel->pullIntFromSignalIndex(modelCountChangedIndex), i+1);
@@ -196,4 +201,21 @@ void QGCMapPolygonTest::_testVertexManipulation(void)
     polyList = _mapPolygon->path();
     QCOMPARE(polyList.count(), 0);
     QCOMPARE(_pathModel->count(), 0);
+}
+
+void QGCMapPolygonTest::_testKMLLoad(void)
+{
+    QVERIFY(_mapPolygon->loadKMLOrSHPFile(QStringLiteral(":/unittest/PolygonGood.kml")));
+
+    setExpectedMessageBox(QMessageBox::Ok);
+    QVERIFY(!_mapPolygon->loadKMLOrSHPFile(QStringLiteral(":/unittest/PolygonBadXml.kml")));
+    checkExpectedMessageBox();
+
+    setExpectedMessageBox(QMessageBox::Ok);
+    QVERIFY(!_mapPolygon->loadKMLOrSHPFile(QStringLiteral(":/unittest/PolygonMissingNode.kml")));
+    checkExpectedMessageBox();
+
+    setExpectedMessageBox(QMessageBox::Ok);
+    QVERIFY(!_mapPolygon->loadKMLOrSHPFile(QStringLiteral(":/unittest/PolygonBadCoordinatesNode.kml")));
+    checkExpectedMessageBox();
 }

@@ -17,8 +17,6 @@
 
 const char*  LogReplayLinkConfiguration::_logFilenameKey = "logFilename";
 
-const char* LogReplayLink::_errorTitle = "Log Replay Error";
-
 LogReplayLinkConfiguration::LogReplayLinkConfiguration(const QString& name)
 	: LinkConfiguration(name)
 {
@@ -76,6 +74,8 @@ LogReplayLink::LogReplayLink(SharedLinkConfigurationPointer& config)
     if (!_logReplayConfig) {
         qWarning() << "Internal error";
     }
+
+    _errorTitle = tr("Log Replay Error");
     
     _readTickTimer.moveToThread(this);
     
@@ -96,7 +96,7 @@ bool LogReplayLink::_connect(void)
 {
     // Disallow replay when any links are connected
     if (qgcApp()->toolbox()->multiVehicleManager()->activeVehicle()) {
-        emit communicationError(_errorTitle, "You must close all connections prior to replaying a log.");
+        emit communicationError(_errorTitle, tr("You must close all connections prior to replaying a log."));
         return false;
     }
 
@@ -243,13 +243,13 @@ bool LogReplayLink::_loadLogFile(void)
     int logDurationSecondsTotal;
     
     if (_logFile.isOpen()) {
-        errorMsg = "Attempt to load new log while log being played";
+        errorMsg = tr("Attempt to load new log while log being played");
         goto Error;
     }
     
     _logFile.setFileName(logFilename);
     if (!_logFile.open(QFile::ReadOnly)) {
-        errorMsg = QString("Unable to open log file: '%1', error: %2").arg(logFilename).arg(_logFile.errorString());
+        errorMsg = tr("Unable to open log file: '%1', error: %2").arg(logFilename).arg(_logFile.errorString());
         goto Error;
     }
     logFileInfo.setFile(logFilename);
@@ -269,7 +269,7 @@ bool LogReplayLink::_loadLogFile(void)
         // timestamp size. This guarantees that we will hit a MAVLink packet before
         // the end of the file. Unfortunately, it basically guarantees that we will
         // hit more than one. This is why we have to search for a bit.
-        qint64 fileLoc = _logFile.size() - MAVLINK_MAX_PACKET_LEN - cbTimestamp;
+        qint64 fileLoc = _logFile.size() - ((MAVLINK_MAX_PACKET_LEN - cbTimestamp) * 2);
         _logFile.seek(fileLoc);
         quint64 endTimeUSecs = startTimeUSecs; // Set a sane default for the endtime
         mavlink_message_t msg;
@@ -279,7 +279,7 @@ bool LogReplayLink::_loadLogFile(void)
         }
         
         if (endTimeUSecs == startTimeUSecs) {
-            errorMsg = QString("The log file '%1' is corrupt. No valid timestamps were found at the end of the file.").arg(logFilename);
+            errorMsg = tr("The log file '%1' is corrupt. No valid timestamps were found at the end of the file.").arg(logFilename);
             goto Error;
         }
         
@@ -367,7 +367,9 @@ void LogReplayLink::_readNextLogEntry(void)
             quint64 currentTimeMSecs = (quint64)QDateTime::currentMSecsSinceEpoch();
             timeToNextExecutionMSecs = desiredPacedTimeMSecs - currentTimeMSecs;
         }
-        
+
+        emit currentLogTimeSecs((_logCurrentTimeUSecs - _logStartTimeUSecs) / 1000000);
+
         // And schedule the next execution of this function.
         _readTickTimer.start(timeToNextExecutionMSecs);
     }
@@ -466,7 +468,7 @@ void LogReplayLink::movePlayhead(int percentComplete)
         
         // Now seek to the appropriate position, failing gracefully if we can't.
         if (!_logFile.seek(newFilePos)) {
-            _replayError("Unable to seek to new position");
+            _replayError(tr("Unable to seek to new position"));
             return;
         }
         
@@ -486,7 +488,7 @@ void LogReplayLink::movePlayhead(int percentComplete)
         // And now jump the necessary number of bytes in the proper direction
         qint64 offset = (newRelativeTimeUSecs - desiredTimeUSecs) * baudRate;
         if (!_logFile.seek(_logFile.pos() + offset)) {
-            _replayError("Unable to seek to new position");
+            _replayError(tr("Unable to seek to new position"));
             return;
         }
         
@@ -505,7 +507,7 @@ void LogReplayLink::movePlayhead(int percentComplete)
         
         // Now seek to the appropriate position, failing gracefully if we can't.
         if (!_logFile.seek(newFilePos)) {
-            _replayError("Unable to seek to new position");
+            _replayError(tr("Unable to seek to new position"));
             return;
         }
         

@@ -4,6 +4,7 @@ import QtQuick.Controls.Styles  1.4
 import QtQuick.Dialogs          1.2
 import QtQuick.Layouts          1.2
 
+import QGroundControl               1.0
 import QGroundControl.ScreenTools   1.0
 import QGroundControl.Vehicle       1.0
 import QGroundControl.Controls      1.0
@@ -16,6 +17,41 @@ Rectangle {
     height: valuesColumn.height + (_margin * 2)
     color:  qgcPal.windowShadeDark
     radius: _radius
+
+    property bool _specifiesAltitude:       missionItem.specifiesAltitude
+    property real _margin:                  ScreenTools.defaultFontPixelHeight / 2
+    property bool _supportsTerrainFrame:    missionItem
+
+    property string _altModeRelativeHelpText:       qsTr("Altitude relative to home altitude")
+    property string _altModeAbsoluteHelpText:       qsTr("Altitude above mean sea level")
+    property string _altModeAboveTerrainHelpText:   qsTr("Altitude above terrain\nActual AMSL altitude: %1 %2").arg(missionItem.amslAltAboveTerrain.valueString).arg(missionItem.amslAltAboveTerrain.units)
+    property string _altModeTerrainFrameHelpText:   qsTr("Using terrain reference frame")
+
+    function updateAltitudeModeText() {
+        if (missionItem.altitudeMode === QGroundControl.AltitudeModeRelative) {
+            altModeLabel.text = qsTr("Altitude")
+            altModeHelp.text = _altModeRelativeHelpText
+        } else if (missionItem.altitudeMode === QGroundControl.AltitudeModeAbsolute) {
+            altModeLabel.text = qsTr("Above Mean Sea Level")
+            altModeHelp.text = _altModeAbsoluteHelpText
+        } else if (missionItem.altitudeMode === QGroundControl.AltitudeModeAboveTerrain) {
+            altModeLabel.text = qsTr("Above Terrain")
+            altModeHelp.text = Qt.binding(function() { return _altModeAboveTerrainHelpText })
+        } else if (missionItem.altitudeMode === QGroundControl.AltitudeModeTerrainFrame) {
+            altModeLabel.text = qsTr("Terrain Frame")
+            altModeHelp.text = _altModeTerrainFrameHelpText
+        } else {
+            altModeLabel.text = qsTr("Internal Error")
+            altModeHelp.text = ""
+        }
+    }
+
+    Component.onCompleted: updateAltitudeModeText()
+
+    Connections {
+        target:                 missionItem
+        onAltitudeModeChanged:  updateAltitudeModeText()
+    }
 
     Column {
         id:                 valuesColumn
@@ -44,7 +80,7 @@ Rectangle {
 
                 QGCLabel {
                     text:           object.name
-                    visible:        object.name != ""
+                    visible:        object.name !== ""
                     Layout.column:  0
                     Layout.row:     index
                 }
@@ -64,11 +100,105 @@ Rectangle {
             }
         }
 
+        Rectangle {
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            height:         altColumn.y + altColumn.height + _margin
+            color:          qgcPal.windowShade
+            visible:        _specifiesAltitude
+
+            Column {
+                id:                 altColumn
+                anchors.margins:    _margin
+                anchors.top:        parent.top
+                anchors.left:       parent.left
+                anchors.right:      parent.right
+                spacing:            _margin
+
+                Item {
+                    width:  altHamburger.x + altHamburger.width
+                    height: altModeLabel.height
+
+                    QGCLabel { id: altModeLabel }
+
+                    QGCColoredImage {
+                        id:                     altHamburger
+                        anchors.leftMargin:     ScreenTools.defaultFontPixelWidth / 4
+                        anchors.left:           altModeLabel.right
+                        anchors.verticalCenter: altModeLabel.verticalCenter
+                        width:                  ScreenTools.defaultFontPixelHeight / 2
+                        height:                 width
+                        sourceSize.height:      height
+                        source:                 "/res/DropArrow.svg"
+                        color:                  qgcPal.text
+                    }
+
+                    QGCMouseArea {
+                        anchors.fill:   parent
+                        onClicked:      altHamburgerMenu.popup()
+                    }
+
+                    Menu {
+                        id: altHamburgerMenu
+
+                        MenuItem {
+                            text:           qsTr("Altitude Relative To Home")
+                            checkable:      true
+                            checked:        missionItem.altitudeMode === QGroundControl.AltitudeModeRelative
+                            onTriggered:    missionItem.altitudeMode = QGroundControl.AltitudeModeRelative
+                        }
+
+                        MenuItem {
+                            text:           qsTr("Altitude Above Mean Sea Level")
+                            checkable:      true
+                            checked:        missionItem.altitudeMode === QGroundControl.AltitudeModeAbsolute
+                            visible:        QGroundControl.corePlugin.options.showMissionAbsoluteAltitude
+                            onTriggered:    missionItem.altitudeMode = QGroundControl.AltitudeModeAbsolute
+                        }
+
+                        MenuItem {
+                            text:           qsTr("Altitude Above Terrain")
+                            checkable:      true
+                            checked:        missionItem.altitudeMode === QGroundControl.AltitudeModeAboveTerrain
+                            onTriggered:    missionItem.altitudeMode = QGroundControl.AltitudeModeAboveTerrain
+                            visible:        missionItem.specifiesCoordinate
+                        }
+
+                        MenuItem {
+                            text:           qsTr("Terrain Frame")
+                            checkable:      true
+                            checked:        missionItem.altitudeMode === QGroundControl.AltitudeModeTerrainFrame
+                            visible:        missionItem.altitudeMode === QGroundControl.AltitudeModeTerrainFrame
+                            onTriggered:    missionItem.altitudeMode = QGroundControl.AltitudeModeTerrainFrame
+                        }
+                    }
+                }
+
+                AltitudeFactTextField {
+                    id:                 altField
+                    fact:               missionItem.altitude
+                    altitudeMode:       missionItem.altitudeMode
+                    anchors.left:       parent.left
+                    anchors.right:      parent.right
+                }
+
+                QGCLabel {
+                    id:                 altModeHelp
+                    wrapMode:           Text.WordWrap
+                    font.pointSize:     ScreenTools.smallFontPointSize
+                    anchors.left:       parent.left
+                    anchors.right:      parent.right
+                }
+            }
+        }
+
         GridLayout {
             anchors.left:   parent.left
             anchors.right:  parent.right
             flow:           GridLayout.TopToBottom
-            rows:           missionItem.textFieldFacts.count + missionItem.nanFacts.count + (missionItem.speedSection.available ? 1 : 0)
+            rows:           missionItem.textFieldFacts.count +
+                            missionItem.nanFacts.count +
+                            (missionItem.speedSection.available ? 1 : 0)
             columns:        2
 
             Repeater {
@@ -95,6 +225,7 @@ Rectangle {
                 visible:    missionItem.speedSection.available
             }
 
+
             Repeater {
                 model: missionItem.textFieldFacts
 
@@ -102,6 +233,7 @@ Rectangle {
                     showUnits:          true
                     fact:               object
                     Layout.fillWidth:   true
+                    enabled:            !object.readOnly
                 }
             }
 
@@ -121,15 +253,6 @@ Rectangle {
                 Layout.fillWidth:   true
                 enabled:            flightSpeedCheckbox.checked
                 visible:            missionItem.speedSection.available
-            }
-        }
-
-        Repeater {
-            model: missionItem.checkboxFacts
-
-            FactCheckBox {
-                text:   object.name
-                fact:   object
             }
         }
 

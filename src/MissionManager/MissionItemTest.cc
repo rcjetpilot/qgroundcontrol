@@ -282,7 +282,7 @@ void MissionItemTest::_testSimpleLoadFromStream(void)
 {
     // We specifically test SimpleMissionItem loading as well since it has additional
     // signalling which can affect values.
-    SimpleMissionItem simpleMissionItem(_offlineVehicle);
+    SimpleMissionItem simpleMissionItem(_offlineVehicle, false /* flyView */, NULL);
 
     QString testString("10\t0\t3\t80\t10\t20\t30\t40\t-10\t-20\t-30\t1\r\n");
     QTextStream testStream(&testString, QIODevice::ReadOnly);
@@ -297,11 +297,11 @@ void MissionItemTest::_testLoadFromJsonV1(void)
     QString     errorString;
     QJsonObject jsonObject = _createV1Json();
 
-    // V1 format has param 1-4 in seperate items instead of in params array
+    // V1 format has param 1-4 in separate items instead of in params array
 
     QStringList removeKeys;
     removeKeys << MissionItem::_jsonParam1Key << MissionItem::_jsonParam2Key << MissionItem::_jsonParam3Key << MissionItem::_jsonParam4Key;
-    foreach (const QString& removeKey, removeKeys) {
+    for (const QString& removeKey: removeKeys) {
         QJsonObject badObject = jsonObject;
         badObject.remove(removeKey);
         QCOMPARE(missionItem.load(badObject, _seq, errorString), false);
@@ -329,7 +329,7 @@ void MissionItemTest::_testLoadFromJsonV2(void)
 
     QStringList removeKeys;
     removeKeys << MissionItem::_jsonCoordinateKey;
-    foreach(const QString& removeKey, removeKeys) {
+    for(const QString& removeKey: removeKeys) {
         QJsonObject badObject = jsonObject;
         badObject.remove(removeKey);
         QCOMPARE(missionItem.load(badObject, _seq, errorString), false);
@@ -399,7 +399,7 @@ void MissionItemTest::_testLoadFromJsonV3(void)
                   MissionItem::_jsonFrameKey <<
                   MissionItem::_jsonParamsKey <<
                   VisualMissionItem::jsonTypeKey;
-    foreach(const QString& removeKey, removeKeys) {
+    for(const QString& removeKey: removeKeys) {
         QJsonObject badObject = jsonObject;
         badObject.remove(removeKey);
         QCOMPARE(missionItem.load(badObject, _seq, errorString), false);
@@ -452,7 +452,7 @@ void MissionItemTest::_testSimpleLoadFromJson(void)
     // We specifically test SimpleMissionItem loading as well since it has additional
     // signalling which can affect values.
 
-    SimpleMissionItem simpleMissionItem(_offlineVehicle);
+    SimpleMissionItem simpleMissionItem(_offlineVehicle, false /* flyView */, NULL);
     QString     errorString;
     QJsonArray  coordinateArray;
     QJsonObject jsonObject;

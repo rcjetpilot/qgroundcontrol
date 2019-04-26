@@ -8,7 +8,7 @@
  ****************************************************************************/
 
 #include "SectionTest.h"
-#include "SurveyMissionItem.h"
+#include "SurveyComplexItem.h"
 
 SectionTest::SectionTest(void)
     : _simpleItem(NULL)
@@ -37,7 +37,7 @@ void SectionTest::init(void)
                             70.1234567,
                             true,           // autoContinue
                             false);         // isCurrentItem
-    _simpleItem = new SimpleMissionItem(_offlineVehicle, missionItem);
+    _simpleItem = new SimpleMissionItem(_offlineVehicle, false /* flyView */, missionItem, this);
 }
 
 void SectionTest::cleanup(void)
@@ -54,21 +54,6 @@ void SectionTest::_createSpy(Section* section, MultiSignalSpy** sectionSpy)
     *sectionSpy = spy;
 }
 
-void SectionTest::_missionItemsEqual(MissionItem& actual, MissionItem& expected)
-{
-    QCOMPARE(actual.command(),      expected.command());
-    QCOMPARE(actual.frame(),        expected.frame());
-    QCOMPARE(actual.autoContinue(), expected.autoContinue());
-
-    QVERIFY(UnitTest::doubleNaNCompare(actual.param1(), expected.param1()));
-    QVERIFY(UnitTest::doubleNaNCompare(actual.param2(), expected.param2()));
-    QVERIFY(UnitTest::doubleNaNCompare(actual.param3(), expected.param3()));
-    QVERIFY(UnitTest::doubleNaNCompare(actual.param4(), expected.param4()));
-    QVERIFY(UnitTest::doubleNaNCompare(actual.param5(), expected.param5()));
-    QVERIFY(UnitTest::doubleNaNCompare(actual.param6(), expected.param6()));
-    QVERIFY(UnitTest::doubleNaNCompare(actual.param7(), expected.param7()));
-}
-
 void SectionTest::_commonScanTest(Section* section)
 {
     QCOMPARE(section->available(), true);
@@ -77,13 +62,13 @@ void SectionTest::_commonScanTest(Section* section)
 
     QmlObjectListModel waypointVisualItems;
     MissionItem waypointItem(0, MAV_CMD_NAV_WAYPOINT, MAV_FRAME_GLOBAL_RELATIVE_ALT, 0, 0, 0, 0, 0, 0, 0, true, false);
-    SimpleMissionItem simpleItem(_offlineVehicle, waypointItem);
+    SimpleMissionItem simpleItem(_offlineVehicle, false /* flyView */, waypointItem, this);
     waypointVisualItems.append(&simpleItem);
     waypointVisualItems.append(&simpleItem);
     waypointVisualItems.append(&simpleItem);
 
     QmlObjectListModel complexVisualItems;
-    SurveyMissionItem surveyItem(_offlineVehicle);
+    SurveyComplexItem surveyItem(_offlineVehicle, false /* fly View */, QString() /* kmlFile */, this /* parent */);
     complexVisualItems.append(&surveyItem);
 
     // This tests the common cases which should not lead to scan succeess

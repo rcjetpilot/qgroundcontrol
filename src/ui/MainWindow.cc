@@ -30,7 +30,7 @@
 #include "QGC.h"
 #include "MAVLinkProtocol.h"
 #include "MainWindow.h"
-#include "GAudioOutput.h"
+#include "AudioOutput.h"
 #ifndef __mobile__
 #include "QGCMAVLinkLogPlayer.h"
 #endif
@@ -67,7 +67,6 @@ enum DockWidgetTypes {
     MAVLINK_INSPECTOR,
     CUSTOM_COMMAND,
     ONBOARD_FILES,
-    DEPRECATED_WIDGET,
     HIL_CONFIG,
     ANALYZE
 };
@@ -76,7 +75,6 @@ static const char *rgDockWidgetNames[] = {
     "MAVLink Inspector",
     "Custom Command",
     "Onboard Files",
-    "Deprecated Widget",
     "HIL Config",
     "Analyze"
 };
@@ -86,7 +84,7 @@ static const char *rgDockWidgetNames[] = {
 static const char* _visibleWidgetsKey = "VisibleWidgets";
 #endif
 
-static MainWindow* _instance = NULL;   ///< @brief MainWindow singleton
+static MainWindow* _instance = nullptr;   ///< @brief MainWindow singleton
 
 MainWindow* MainWindow::_create()
 {
@@ -108,10 +106,10 @@ void MainWindow::deleteInstance(void)
 ///         by MainWindow::_create method. Hence no other code should have access to
 ///         constructor.
 MainWindow::MainWindow()
-    : _mavlinkDecoder       (NULL)
+    : _mavlinkDecoder       (nullptr)
     , _lowPowerMode         (false)
     , _showStatusBar        (false)
-    , _mainQmlWidgetHolder  (NULL)
+    , _mainQmlWidgetHolder  (nullptr)
     , _forceClose           (false)
 {
     _instance = this;
@@ -133,8 +131,6 @@ MainWindow::MainWindow()
     emit initStatusChanged(tr("Setting up user interface"), Qt::AlignLeft | Qt::AlignBottom, QColor(62, 93, 141));
 
     _ui.setupUi(this);
-    // Make sure tool bar elements all fit before changing minimum width
-    setMinimumWidth(1008);
     configureWindowName();
 
     // Setup central widget with a layout to hold the views
@@ -142,21 +138,15 @@ MainWindow::MainWindow()
     _centralLayout->setContentsMargins(0, 0, 0, 0);
     centralWidget()->setLayout(_centralLayout);
 
-    _mainQmlWidgetHolder = new QGCQmlWidgetHolder(QString(), NULL, this);
-    _centralLayout->addWidget(_mainQmlWidgetHolder);
-    _mainQmlWidgetHolder->setVisible(true);
-
-    QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
-    _mainQmlWidgetHolder->setContextPropertyObject("controller", this);
-    _mainQmlWidgetHolder->setContextPropertyObject("debugMessageModel", AppMessages::getModel());
-    _mainQmlWidgetHolder->setSource(QUrl::fromUserInput("qrc:qml/MainWindowHybrid.qml"));
+    //-- Allow plugin to initialize main QML Widget
+    _mainQmlWidgetHolder = qgcApp()->toolbox()->corePlugin()->createMainQmlWidgetHolder(_centralLayout, this);
 
     // Image provider
     QQuickImageProvider* pImgProvider = dynamic_cast<QQuickImageProvider*>(qgcApp()->toolbox()->imageProvider());
-    _mainQmlWidgetHolder->getEngine()->addImageProvider(QLatin1String("QGCImages"), pImgProvider);
+    _mainQmlWidgetHolder->getEngine()->addImageProvider(QStringLiteral("QGCImages"), pImgProvider);
 
     // Set dock options
-    setDockOptions(0);
+    setDockOptions(nullptr);
     // Setup corners
     setCorner(Qt::BottomRightCorner, Qt::BottomDockWidgetArea);
 
@@ -166,7 +156,7 @@ MainWindow::MainWindow()
 #endif
 
 #ifdef UNITTEST_BUILD
-    QAction* qmlTestAction = new QAction("Test QML palette and controls", NULL);
+    QAction* qmlTestAction = new QAction("Test QML palette and controls", nullptr);
     connect(qmlTestAction, &QAction::triggered, this, &MainWindow::_showQmlTestWidget);
     _ui.menuWidgets->addAction(qmlTestAction);
 #endif
@@ -186,19 +176,6 @@ MainWindow::MainWindow()
 
     // Create actions
     connectCommonActions();
-    // Connect user interface devices
-#ifdef QGC_MOUSE_ENABLED_WIN
-    emit initStatusChanged(tr("Initializing 3D mouse interface"), Qt::AlignLeft | Qt::AlignBottom, QColor(62, 93, 141));
-    mouseInput = new Mouse3DInput(this);
-    mouse = new Mouse6dofInput(mouseInput);
-#endif //QGC_MOUSE_ENABLED_WIN
-
-#if QGC_MOUSE_ENABLED_LINUX
-    emit initStatusChanged(tr("Initializing 3D mouse interface"), Qt::AlignLeft | Qt::AlignBottom, QColor(62, 93, 141));
-
-    mouse = new Mouse6dofInput(this);
-    connect(this, &MainWindow::x11EventOccured, mouse, &Mouse6dofInput::handleX11Event);
-#endif //QGC_MOUSE_ENABLED_LINUX
 
     // Set low power mode
     enableLowPowerMode(_lowPowerMode);
@@ -244,21 +221,6 @@ MainWindow::MainWindow()
         menuBar()->hide();
 #endif
         show();
-#ifdef __macos__
-        // TODO HACK
-        // This is a really ugly hack. For whatever reason, by having a QQuickWidget inside a
-        // QDockWidget (MainToolBar above), the main menu is not shown when the app first
-        // starts. I looked everywhere and I could not find a solution. What I did notice was
-        // that if any other window gets focus, the menu comes up when you come back to QGC.
-        // That is, if you were to click on another window and then back to QGC, the menus
-        // would appear. This hack below creates a 0x0 dialog and immediately closes it.
-        // That works around the issue and it will do until I find the root of the problem.
-        QDialog qd(this);
-        qd.show();
-        qd.raise();
-        qd.activateWindow();
-        qd.close();
-#endif
     }
 
 #ifndef __mobile__
@@ -278,14 +240,14 @@ MainWindow::~MainWindow()
         _mavlinkDecoder->finish();
         _mavlinkDecoder->wait(1000);
         _mavlinkDecoder->deleteLater();
-        _mavlinkDecoder = NULL;
+        _mavlinkDecoder = nullptr;
     }
 
     // This needs to happen before we get into the QWidget dtor
     // otherwise  the QML engine reads freed data and tries to
     // destroy MainWindow a second time.
     delete _mainQmlWidgetHolder;
-    _instance = NULL;
+    _instance = nullptr;
 }
 
 QString MainWindow::_getWindowGeometryKey()
@@ -347,7 +309,7 @@ void MainWindow::_showDockWidget(const QString& name, bool show)
 /// Creates the specified inner dock widget and adds to the QDockWidget
 bool MainWindow::_createInnerDockWidget(const QString& widgetName)
 {
-    QGCDockWidget* widget = NULL;
+    QGCDockWidget* widget = nullptr;
     QAction *action = _mapName2Action[widgetName];
     if(action) {
         switch(action->data().toInt()) {
@@ -371,12 +333,12 @@ bool MainWindow::_createInnerDockWidget(const QString& widgetName)
             _mapName2DockWidget[widgetName] = widget;
         }
     }
-    return widget != NULL;
+    return widget != nullptr;
 }
 
 void MainWindow::_hideAllDockWidgets(void)
 {
-    foreach(QGCDockWidget* dockWidget, _mapName2DockWidget) {
+    for(QGCDockWidget* dockWidget: _mapName2DockWidget) {
         dockWidget->setVisible(false);
     }
 }
@@ -395,7 +357,7 @@ void MainWindow::showStatusBarCallback(bool checked)
     checked ? statusBar()->show() : statusBar()->hide();
 }
 
-void MainWindow::reallyClose(void)
+void MainWindow::_reallyClose(void)
 {
     _forceClose = true;
     close();
@@ -458,6 +420,7 @@ void MainWindow::connectCommonActions()
 {
     // Connect internal actions
     connect(qgcApp()->toolbox()->multiVehicleManager(), &MultiVehicleManager::vehicleAdded, this, &MainWindow::_vehicleAdded);
+    connect(this, &MainWindow::reallyClose, this, &MainWindow::_reallyClose, Qt::QueuedConnection); // Queued to allow closeEvent to fully unwind before _reallyClose is called
 }
 
 void MainWindow::_openUrl(const QString& url, const QString& errorMessage)
@@ -476,7 +439,7 @@ void MainWindow::_vehicleAdded(Vehicle* vehicle)
 void MainWindow::_storeCurrentViewState(void)
 {
 #ifndef __mobile__
-    foreach(QGCDockWidget* dockWidget, _mapName2DockWidget) {
+    for(QGCDockWidget* dockWidget: _mapName2DockWidget) {
         dockWidget->saveSettings();
     }
 #endif
@@ -492,14 +455,6 @@ void MainWindow::saveLastUsedConnection(const QString connection)
     key += "/LAST_CONNECTION";
     settings.setValue(key, connection);
 }
-
-#ifdef QGC_MOUSE_ENABLED_LINUX
-bool MainWindow::x11Event(XEvent *event)
-{
-    emit x11EventOccured(event);
-    return false;
-}
-#endif // QGC_MOUSE_ENABLED_LINUX
 
 #ifdef UNITTEST_BUILD
 void MainWindow::_showQmlTestWidget(void)
@@ -518,7 +473,7 @@ void MainWindow::_loadVisibleWidgetsSettings(void)
     if (!widgets.isEmpty()) {
         QStringList nameList = widgets.split(",");
 
-        foreach (const QString &name, nameList) {
+        for (const QString &name: nameList) {
             _showDockWidget(name, true);
         }
     }
@@ -529,7 +484,7 @@ void MainWindow::_storeVisibleWidgetsSettings(void)
     QString widgetNames;
     bool firstWidget = true;
 
-    foreach (const QString &name, _mapName2DockWidget.keys()) {
+    for (const QString &name: _mapName2DockWidget.keys()) {
         if (_mapName2DockWidget[name]->isVisible()) {
             if (!firstWidget) {
                 widgetNames += ",";
@@ -549,7 +504,7 @@ void MainWindow::_storeVisibleWidgetsSettings(void)
 
 QObject* MainWindow::rootQmlObject(void)
 {
-    return _mainQmlWidgetHolder->getRootObject();
+    return _mainQmlWidgetHolder ? _mainQmlWidgetHolder->getRootObject() : nullptr;
 }
 
 void MainWindow::_showAdvancedUIChanged(bool advanced)

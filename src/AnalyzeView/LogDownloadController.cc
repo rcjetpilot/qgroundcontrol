@@ -21,6 +21,7 @@
 #include "QGCMapEngine.h"
 #include "ParameterManager.h"
 #include "Vehicle.h"
+#include "SettingsManager.h"
 
 #include <QDebug>
 #include <QSettings>
@@ -173,7 +174,7 @@ LogDownloadController::_logEntry(UASInterface* uas, uint32_t time_utc, uint32_t 
     //-- Update this log record
     if(num_logs > 0) {
         //-- Skip if empty (APM first packet)
-        if(size) {
+        if(size || _vehicle->firmwareType() != MAV_AUTOPILOT_ARDUPILOTMEGA) {
             id -= _apmOneBased;
             if(id < _logEntriesModel.count()) {
                 QGCLogEntry* entry = _logEntriesModel[id];
@@ -320,7 +321,7 @@ LogDownloadController::_logData(UASInterface* uas, uint32_t ofs, uint16_t id, ui
     if(ofs <= _downloadData->entry->size()) {
         const uint32_t chunk = ofs / kChunkSize;
         if (chunk != _downloadData->current_chunk) {
-            qWarning() << "Ignored packet for out of order chunk" << chunk;
+            qWarning() << "Ignored packet for out of order chunk actual:expected" << chunk << _downloadData->current_chunk;
             return;
         }
         const uint16_t bin = (ofs - chunk*kChunkSize) / MAVLINK_MSG_LOG_DATA_FIELD_DATA_LEN;
@@ -407,6 +408,7 @@ LogDownloadController::_receivedAllData()
     if(_prepareLogDownload()) {
         //-- Request Log
         _requestLogData(_downloadData->ID, 0, _downloadData->chunk_table.size()*MAVLINK_MSG_LOG_DATA_FIELD_DATA_LEN);
+        _timer.start(kTimeOutMilliseconds);
     } else {
         _resetSelection();
         _setDownloading(false);
@@ -453,7 +455,7 @@ LogDownloadController::_findMissingData()
 
 //----------------------------------------------------------------------------------------
 void
-LogDownloadController::_requestLogData(uint8_t id, uint32_t offset, uint32_t count)
+LogDownloadController::_requestLogData(uint16_t id, uint32_t offset, uint32_t count)
 {
     if(_vehicle) {
         //-- APM "Fix"
@@ -510,7 +512,7 @@ LogDownloadController::download(QString path)
     QString dir = path;
 #if defined(__mobile__)
     if(dir.isEmpty()) {
-        dir = QDir::homePath();
+        dir = qgcApp()->toolbox()->settingsManager()->appSettings()->logSavePath();
     }
 #else
     if(dir.isEmpty()) {
@@ -589,14 +591,14 @@ LogDownloadController::_prepareLogDownload()
     bool result = false;
     QString ftime;
     if(entry->time().date().year() < 2010) {
-        ftime = "UnknownDate";
+        ftime = tr("UnknownDate");
     } else {
-        ftime = entry->time().toString("yyyy-M-d-hh-mm-ss");
+        ftime = entry->time().toString(QStringLiteral("yyyy-M-d-hh-mm-ss"));
     }
     _downloadData = new LogDownloadData(entry);
     _downloadData->filename = QString("log_") + QString::number(entry->id()) + "_" + ftime;
     if (_vehicle->firmwareType() == MAV_AUTOPILOT_PX4) {
-        QString loggerParam("SYS_LOGGER");
+        QString loggerParam = QStringLiteral("SYS_LOGGER");
         if (_vehicle->parameterManager()->parameterExists(FactSystem::defaultComponentId, loggerParam) &&
                 _vehicle->parameterManager()->getParameter(FactSystem::defaultComponentId, loggerParam)->rawValue().toInt() == 0) {
             _downloadData->filename += ".px4log";

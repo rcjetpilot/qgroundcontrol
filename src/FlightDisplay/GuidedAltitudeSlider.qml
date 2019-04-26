@@ -21,18 +21,23 @@ Rectangle {
     readonly property real _maxAlt: 121.92  // 400 feet
     readonly property real _minAlt: 3
 
-    property var _guidedSettings:       QGroundControl.settingsManager.guidedSettings
-    property var _activeVehicle:        QGroundControl.multiVehicleManager.activeVehicle
+    property var  _flyViewSettings:     QGroundControl.settingsManager.flyViewSettings
+    property var  _activeVehicle:       QGroundControl.multiVehicleManager.activeVehicle
     property real _vehicleAltitude:     _activeVehicle ? _activeVehicle.altitudeRelative.rawValue : 0
     property bool _fixedWing:           _activeVehicle ? _activeVehicle.fixedWing : false
-    property real _sliderMaxAlt:        _fixedWing ? _guidedSettings.fixedWingMaximumAltitude.rawValue : _guidedSettings.vehicleMaximumAltitude.rawValue
-    property real _sliderMinAlt:        _fixedWing ? _guidedSettings.fixedWingMinimumAltitude.rawValue : _guidedSettings.vehicleMinimumAltitude.rawValue
+    property real _sliderMaxAlt:        _flyViewSettings ? _flyViewSettings.guidedMaximumAltitude.rawValue : 0
+    property real _sliderMinAlt:        _flyViewSettings ? _flyViewSettings.guidedMinimumAltitude.rawValue : 0
 
     function reset() {
         altSlider.value = 0
     }
 
-    function getValue() {
+    function setToMinimumTakeoff() {
+        altField.setToMinimumTakeoff()
+    }
+
+    /// Returns the user specified change in altitude from the current vehicle altitude
+    function getAltitudeChangeValue() {
         return altField.newAltitudeMeters - _vehicleAltitude
     }
 
@@ -70,6 +75,10 @@ Rectangle {
             property real   altLossGain:            altExp * (altSlider.value > 0 ? altGainRange : altLossRange)
             property real   newAltitudeMeters:      _vehicleAltitude + altLossGain
             property string newAltitudeAppUnits:    QGroundControl.metersToAppSettingsDistanceUnits(newAltitudeMeters).toFixed(1)
+
+            function setToMinimumTakeoff() {
+                altSlider.value = Math.pow(_activeVehicle.minimumTakeoffAltitude() / altGainRange, 1.0/3.0)
+            }
         }
     }
 

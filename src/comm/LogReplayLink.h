@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
+ *   (c) 2009-2018 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
  *
  * QGroundControl is licensed according to the terms in the file
  * COPYING.md in the root of the source code directory.
@@ -8,8 +8,7 @@
  ****************************************************************************/
 
 
-#ifndef LogReplayLink_H
-#define LogReplayLink_H
+#pragma once
 
 #include "LinkInterface.h"
 #include "LinkConfiguration.h"
@@ -41,6 +40,7 @@ public:
     void        saveSettings            (QSettings& settings, const QString& root);
     void        updateSettings          ();
     QString     settingsURL             () { return "LogReplaySettings.qml"; }
+    QString     settingsTitle           () { return tr("Log Replay Link Settings"); }
 signals:
     void fileNameChanged();
 
@@ -94,6 +94,7 @@ signals:
     void playbackAtEnd(void);
     void playbackError(void);
     void playbackPercentCompleteChanged(int percentComplete);
+    void currentLogTimeSecs(int secs);
 
     // Internal signals
     void _playOnThread(void);
@@ -133,7 +134,7 @@ private:
     int     _mavlinkChannel;
     QTimer  _readTickTimer;      ///< Timer which signals a read of next log record
 
-    static const char* _errorTitle; ///< Title for communicatorError signals
+    QString _errorTitle; ///< Title for communicatorError signals
 
     quint64 _logCurrentTimeUSecs;   ///< The timestamp of the next message in the log file.
     quint64 _logStartTimeUSecs;     ///< The first timestamp in the current log file.
@@ -154,4 +155,3 @@ private:
     static const int cbTimestamp = sizeof(quint64);
 };
 
-#endif

@@ -14,7 +14,6 @@
 #include "QGCMapPolygon.h"
 #include "QmlObjectListModel.h"
 
-/// Unit test for SurveyMissionItem
 class QGCMapPolygonTest : public UnitTest
 {
     Q_OBJECT
@@ -29,6 +28,7 @@ protected:
 private slots:
     void _testDirty(void);
     void _testVertexManipulation(void);
+    void _testKMLLoad(void);
 
 private:
     enum {
