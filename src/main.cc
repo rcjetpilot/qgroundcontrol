@@ -1,264 +1,71 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
-
-/**
- * @file
- *   @brief Main executable
- *   @author Lorenz Meier <mavteam@student.ethz.ch>
- *
- */
-
-#include <QtGlobal>
-#include <QApplication>
-#include <QIcon>
-#include <QSslSocket>
-#include <QProcessEnvironment>
-#include <QHostAddress>
-#include <QUdpSocket>
-#include <QtPlugin>
-#include <QStringListModel>
 #include "QGCApplication.h"
-#include "AppMessages.h"
+#include "QGCCommandLineParser.h"
+#include "LogManager.h"
+#include "QGCLoggingCategory.h"
+#include "Platform.h"
 
-#ifndef __mobile__
-    #include "QGCSerialPortInfo.h"
-    #include "RunGuard.h"
+#ifdef QGC_UNITTEST_BUILD
+    #include "UnitTestList.h"
 #endif
 
-#ifdef UNITTEST_BUILD
-    #include "UnitTest.h"
-#endif
-
-#ifdef QT_DEBUG
-    #include "CmdLineOptParser.h"
-    #ifdef Q_OS_WIN
-        #include <crtdbg.h>
-    #endif
-#endif
-
-#ifdef QGC_ENABLE_BLUETOOTH
-#include <QtBluetooth/QBluetoothSocket>
-#endif
-
-#include <iostream>
-#include "QGCMapEngine.h"
-
-/* SDL does ugly things to main() */
-#ifdef main
-#undef main
-#endif
-
-#ifndef __mobile__
-    Q_DECLARE_METATYPE(QGCSerialPortInfo)
-#endif
-
-#ifdef Q_OS_WIN
-/// @brief CRT Report Hook installed using _CrtSetReportHook. We install this hook when
-/// we don't want asserts to pop a dialog on windows.
-int WindowsCrtReportHook(int reportType, char* message, int* returnValue)
-{
-    Q_UNUSED(reportType);
-
-    std::cerr << message << std::endl;  // Output message to stderr
-    *returnValue = 0;                   // Don't break into debugger
-    return true;                        // We handled this fully ourselves
-}
-
-#endif
-
-#if defined(__android__) && !defined(NO_SERIAL_LINK)
-#include <jni.h>
-#include "qserialport.h"
-
-jint JNI_OnLoad(JavaVM* vm, void* reserved)
-{
-    Q_UNUSED(reserved);
-
-    JNIEnv* env;
-    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-        return -1;
-    }
-
-    QSerialPort::setNativeMethods();
-
-    return JNI_VERSION_1_6;
-}
-#endif
-
-/**
- * @brief Starts the application
- *
- * @param argc Number of commandline arguments
- * @param argv Commandline arguments
- * @return exit code, 0 for normal exit and !=0 for error cases
- */
+QGC_LOGGING_CATEGORY_ON(MainLog, "Main")
 
 int main(int argc, char *argv[])
 {
-#ifndef __mobile__
-    RunGuard guard("QGroundControlRunGuardKey");
-    if (!guard.tryToRun()) {
-        return 0;
+    // --- Parse command line arguments ---
+    const auto args = QGCCommandLineParser::parse(argc, argv);
+    if (const auto exitCode = QGCCommandLineParser::handleParseResult(args)) {
+        return *exitCode;
     }
+
+    // --- Platform initialization ---
+    if (const auto exitCode = Platform::initialize(argc, argv, args)) {
+        return *exitCode;
+    }
+
+    QGCApplication app(argc, argv, args);
+
+    LogManager::installHandler(args.logOutput);
+
+    Platform::setupPostApp();
+
+    app.init();
+
+    // Apply after installFilter() (called during app.init) so rules aren't overwritten.
+    LogManager::applyEnvironmentLogLevel();
+
+    // --- Run application or tests ---
+    const auto run = [&]() -> int {
+        using QGCCommandLineParser::AppMode;
+        switch (QGCCommandLineParser::determineAppMode(args)) {
+#ifdef QGC_UNITTEST_BUILD
+        case AppMode::ListTests:
+        case AppMode::Test:
+            return QGCUnitTest::handleTestOptions(args);
 #endif
-
-#ifdef Q_OS_UNIX
-    //Force writing to the console on UNIX/BSD devices
-    if (!qEnvironmentVariableIsSet("QT_LOGGING_TO_CONSOLE"))
-        qputenv("QT_LOGGING_TO_CONSOLE", "1");
-#endif
-
-    // install the message handler
-    AppMessages::installHandler();
-
-#ifdef Q_OS_MAC
-#ifndef __ios__
-    // Prevent Apple's app nap from screwing us over
-    // tip: the domain can be cross-checked on the command line with <defaults domains>
-    QProcess::execute("defaults write org.qgroundcontrol.qgroundcontrol NSAppSleepDisabled -bool YES");
-#endif
-#endif
-
-#ifdef Q_OS_WIN
-    // Set our own OpenGL buglist
-    qputenv("QT_OPENGL_BUGLIST", ":/opengl/resources/opengl/buglist.json");
-
-    // Allow for command line override of renderer
-    for (int i = 0; i < argc; i++) {
-        const QString arg(argv[i]);
-        if (arg == QStringLiteral("-angle")) {
-            QCoreApplication::setAttribute(Qt::AA_UseOpenGLES);
-            break;
-        } else if (arg == QStringLiteral("-swrast")) {
-            QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
-            break;
+        case AppMode::BootTest:
+            if (!app.bootTestPassed()) {
+                qCCritical(MainLog) << "Simple boot test failed";
+                return EXIT_FAILURE;
+            }
+            qCInfo(MainLog) << "Simple boot test completed";
+            return EXIT_SUCCESS;
+        case AppMode::Gui:
+            qCInfo(MainLog) << "Starting application event loop";
+            return app.exec();
         }
-    }
-#endif
-
-    // The following calls to qRegisterMetaType are done to silence debug output which warns
-    // that we use these types in signals, and without calling qRegisterMetaType we can't queue
-    // these signals. In general we don't queue these signals, but we do what the warning says
-    // anyway to silence the debug output.
-#ifndef NO_SERIAL_LINK
-    qRegisterMetaType<QSerialPort::SerialPortError>();
-#endif
-#ifdef QGC_ENABLE_BLUETOOTH
-    qRegisterMetaType<QBluetoothSocket::SocketError>();
-    qRegisterMetaType<QBluetoothServiceInfo>();
-#endif
-    qRegisterMetaType<QAbstractSocket::SocketError>();
-#ifndef __mobile__
-    qRegisterMetaType<QGCSerialPortInfo>();
-#endif
-
-    // We statically link our own QtLocation plugin
-
-#ifdef Q_OS_WIN
-    // In Windows, the compiler doesn't see the use of the class created by Q_IMPORT_PLUGIN
-#pragma warning( disable : 4930 4101 )
-#endif
-
-    Q_IMPORT_PLUGIN(QGeoServiceProviderFactoryQGC)
-
-    bool runUnitTests = false;          // Run unit tests
-
-#ifdef QT_DEBUG
-    // We parse a small set of command line options here prior to QGCApplication in order to handle the ones
-    // which need to be handled before a QApplication object is started.
-
-    bool stressUnitTests = false;       // Stress test unit tests
-    bool quietWindowsAsserts = false;   // Don't let asserts pop dialog boxes
-
-    QString unitTestOptions;
-    CmdLineOpt_t rgCmdLineOptions[] = {
-        { "--unittest",             &runUnitTests,          &unitTestOptions },
-        { "--unittest-stress",      &stressUnitTests,       &unitTestOptions },
-        { "--no-windows-assert-ui", &quietWindowsAsserts,   NULL },
-        // Add additional command line option flags here
+        Q_UNREACHABLE();
     };
 
-    ParseCmdLineOptions(argc, argv, rgCmdLineOptions, sizeof(rgCmdLineOptions)/sizeof(rgCmdLineOptions[0]), false);
-    if (stressUnitTests) {
-        runUnitTests = true;
-    }
+    const int exitCode = run();
 
-    if (quietWindowsAsserts) {
-#ifdef Q_OS_WIN
-        _CrtSetReportHook(WindowsCrtReportHook);
-#endif
-    }
+    // --- Cleanup ---
+    app.shutdown();
 
-#ifdef Q_OS_WIN
-    if (runUnitTests) {
-        // Don't pop up Windows Error Reporting dialog when app crashes. This prevents TeamCity from
-        // hanging.
-        DWORD dwMode = SetErrorMode(SEM_NOGPFAULTERRORBOX);
-        SetErrorMode(dwMode | SEM_NOGPFAULTERRORBOX);
-    }
-#endif
-#endif // QT_DEBUG
+    qCInfo(MainLog) << "Exiting main";
 
-    QGCApplication* app = new QGCApplication(argc, argv, runUnitTests);
-    Q_CHECK_PTR(app);
-
-#ifdef Q_OS_LINUX
-    QApplication::setWindowIcon(QIcon(":/res/resources/icons/qgroundcontrol.ico"));
-#endif /* Q_OS_LINUX */
-
-    // There appears to be a threading issue in qRegisterMetaType which can cause it to throw a qWarning
-    // about duplicate type converters. This is caused by a race condition in the Qt code. Still working
-    // with them on tracking down the bug. For now we register the type which is giving us problems here
-    // while we only have the main thread. That should prevent it from hitting the race condition later
-    // on in the code.
-    qRegisterMetaType<QList<QPair<QByteArray,QByteArray> > >();
-
-    app->_initCommon();
-    //-- Initialize Cache System
-    getQGCMapEngine()->init();
-
-    int exitCode = 0;
-
-#ifdef UNITTEST_BUILD
-    if (runUnitTests) {
-        for (int i=0; i < (stressUnitTests ? 20 : 1); i++) {
-            if (!app->_initForUnitTests()) {
-                return -1;
-            }
-
-            // Run the test
-            int failures = UnitTest::run(unitTestOptions);
-            if (failures == 0) {
-                qDebug() << "ALL TESTS PASSED";
-                exitCode = 0;
-            } else {
-                qDebug() << failures << " TESTS FAILED!";
-                exitCode = -failures;
-                break;
-            }
-        }
-    } else
-#endif
-    {
-        if (!app->_initForNormalAppBoot()) {
-            return -1;
-        }
-        exitCode = app->exec();
-    }
-
-    app->_shutdown();
-    delete app;
-    //-- Shutdown Cache System
-    destroyMapEngine();
-
-    qDebug() << "After app delete";
+    // Destroy LogManager while Qt is still fully functional (before static destruction).
+    delete LogManager::instance();
 
     return exitCode;
 }

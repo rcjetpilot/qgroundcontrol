@@ -1,121 +1,196 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
 #include "ArduPlaneFirmwarePlugin.h"
+#include "Vehicle.h"
 
 bool ArduPlaneFirmwarePlugin::_remapParamNameIntialized = false;
 FirmwarePlugin::remapParamNameMajorVersionMap_t ArduPlaneFirmwarePlugin::_remapParamName;
 
-APMPlaneMode::APMPlaneMode(uint32_t mode, bool settable)
-    : APMCustomMode(mode, settable)
+ArduPlaneFirmwarePlugin::ArduPlaneFirmwarePlugin(QObject *parent)
+    : APMFirmwarePlugin(parent)
 {
-    QMap<uint32_t,QString> enumToString;
-    enumToString.insert(MANUAL,         "Manual");
-    enumToString.insert(CIRCLE,         "Circle");
-    enumToString.insert(STABILIZE,      "Stabilize");
-    enumToString.insert(TRAINING,       "Training");
-    enumToString.insert(ACRO,           "Acro");
-    enumToString.insert(FLY_BY_WIRE_A,  "FWB A");
-    enumToString.insert(FLY_BY_WIRE_B,  "FWB B");
-    enumToString.insert(CRUISE,         "Cruise");
-    enumToString.insert(AUTOTUNE,       "Autotune");
-    enumToString.insert(AUTO,           "Auto");
-    enumToString.insert(RTL,            "RTL");
-    enumToString.insert(LOITER,         "Loiter");
-    enumToString.insert(GUIDED,         "Guided");
-    enumToString.insert(INITIALIZING,   "Initializing");
-    enumToString.insert(QSTABILIZE,     "QuadPlane Stabilize");
-    enumToString.insert(QHOVER,         "QuadPlane Hover");
-    enumToString.insert(QLOITER,        "QuadPlane Loiter");
-    enumToString.insert(QLAND,          "QuadPlane Land");
-    enumToString.insert(QRTL,           "QuadPlane RTL");
+    _setModeEnumToModeStringMapping({
+        { APMPlaneMode::MANUAL        , _manualFlightMode       },
+        { APMPlaneMode::CIRCLE        , _circleFlightMode       },
+        { APMPlaneMode::STABILIZE     , _stabilizeFlightMode    },
+        { APMPlaneMode::TRAINING      , _trainingFlightMode     },
+        { APMPlaneMode::ACRO          , _acroFlightMode         },
+        { APMPlaneMode::FLY_BY_WIRE_A , _flyByWireAFlightMode   },
+        { APMPlaneMode::FLY_BY_WIRE_B , _flyByWireBFlightMode   },
+        { APMPlaneMode::CRUISE        , _cruiseFlightMode       },
+        { APMPlaneMode::AUTOTUNE      , _autoTuneFlightMode     },
+        { APMPlaneMode::AUTO          , _autoFlightMode         },
+        { APMPlaneMode::RTL           , _rtlFlightMode          },
+        { APMPlaneMode::LOITER        , _loiterFlightMode       },
+        { APMPlaneMode::TAKEOFF       , _takeoffFlightMode      },
+        { APMPlaneMode::AVOID_ADSB    , _avoidADSBFlightMode    },
+        { APMPlaneMode::GUIDED        , _guidedFlightMode       },
+        { APMPlaneMode::INITIALIZING  , _initializingFlightMode },
+        { APMPlaneMode::QSTABILIZE    , _qStabilizeFlightMode   },
+        { APMPlaneMode::QHOVER        , _qHoverFlightMode       },
+        { APMPlaneMode::QLOITER       , _qLoiterFlightMode      },
+        { APMPlaneMode::QLAND         , _qLandFlightMode        },
+        { APMPlaneMode::QRTL          , _qRTLFlightMode         },
+        { APMPlaneMode::QAUTOTUNE     , _qAutotuneFlightMode    },
+        { APMPlaneMode::QACRO         , _qAcroFlightMode        },
+        { APMPlaneMode::THERMAL       , _thermalFlightMode      },
+        { APMPlaneMode::LOITER2QLAND  , _loiter2qlandFlightMode },
+        { APMPlaneMode::AUTOLAND      , _autolandFlightMode     },
 
-    setEnumToStringMapping(enumToString);
-}
+    });
 
-ArduPlaneFirmwarePlugin::ArduPlaneFirmwarePlugin(void)
-{
-    QList<APMCustomMode> supportedFlightModes;
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::MANUAL          ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::CIRCLE          ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::STABILIZE       ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::TRAINING        ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::ACRO            ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::FLY_BY_WIRE_A   ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::FLY_BY_WIRE_B   ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::CRUISE          ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::AUTOTUNE        ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::AUTO            ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::RTL             ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::LOITER          ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::GUIDED          ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::INITIALIZING    ,false);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::QSTABILIZE      ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::QHOVER          ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::QLOITER         ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::QLAND           ,true);
-    supportedFlightModes << APMPlaneMode(APMPlaneMode::QRTL            ,true);
-    setSupportedModes(supportedFlightModes);
+    static FlightModeList availableFlightModes = {
+         // Mode Name              , Custom Mode                CanBeSet  adv
+        { _manualFlightMode       , APMPlaneMode::MANUAL        , true , true },
+        { _circleFlightMode       , APMPlaneMode::CIRCLE        , true , true },
+        { _stabilizeFlightMode    , APMPlaneMode::STABILIZE     , true , true },
+        { _trainingFlightMode     , APMPlaneMode::TRAINING      , true , true },
+        { _acroFlightMode         , APMPlaneMode::ACRO          , true , true },
+        { _flyByWireAFlightMode   , APMPlaneMode::FLY_BY_WIRE_A , true , true },
+        { _flyByWireBFlightMode   , APMPlaneMode::FLY_BY_WIRE_B , true , true },
+        { _cruiseFlightMode       , APMPlaneMode::CRUISE        , true , true },
+        { _autoTuneFlightMode     , APMPlaneMode::AUTOTUNE      , true , true },
+        { _autoFlightMode         , APMPlaneMode::AUTO          , true , true },
+        { _rtlFlightMode          , APMPlaneMode::RTL           , true , true },
+        { _loiterFlightMode       , APMPlaneMode::LOITER        , true , true },
+        { _takeoffFlightMode      , APMPlaneMode::TAKEOFF       , true , true },
+        { _avoidADSBFlightMode    , APMPlaneMode::AVOID_ADSB    , true , true },
+        { _guidedFlightMode       , APMPlaneMode::GUIDED        , true , true },
+        { _initializingFlightMode , APMPlaneMode::INITIALIZING  , false, true },
+        { _qStabilizeFlightMode   , APMPlaneMode::QSTABILIZE    , true , true },
+        { _qHoverFlightMode       , APMPlaneMode::QHOVER        , true , true },
+        { _qLoiterFlightMode      , APMPlaneMode::QLOITER       , true , true },
+        { _qLandFlightMode        , APMPlaneMode::QLAND         , true , true },
+        { _qRTLFlightMode         , APMPlaneMode::QRTL          , true , true },
+        { _qAutotuneFlightMode    , APMPlaneMode::QAUTOTUNE     , true , true },
+        { _qAcroFlightMode        , APMPlaneMode::QACRO         , true , true },
+        { _thermalFlightMode      , APMPlaneMode::THERMAL       , true , true },
+        { _loiter2qlandFlightMode , APMPlaneMode::LOITER2QLAND  , true , true },
+        { _autolandFlightMode     , APMPlaneMode::AUTOLAND      , true , true },
+    };
+    updateAvailableFlightModes(availableFlightModes);
 
     if (!_remapParamNameIntialized) {
-        FirmwarePlugin::remapParamNameMap_t& remapV3_8 = _remapParamName[3][8];
+        FirmwarePlugin::remapParamNameMap_t &remapV4_5 = _remapParamName[4][5];
 
-        remapV3_8["SERVO5_FUNCTION"] = QStringLiteral("RC5_FUNCTION");
-        remapV3_8["SERVO6_FUNCTION"] = QStringLiteral("RC6_FUNCTION");
-        remapV3_8["SERVO7_FUNCTION"] = QStringLiteral("RC7_FUNCTION");
-        remapV3_8["SERVO8_FUNCTION"] = QStringLiteral("RC8_FUNCTION");
-        remapV3_8["SERVO9_FUNCTION"] = QStringLiteral("RC9_FUNCTION");
-        remapV3_8["SERVO10_FUNCTION"] = QStringLiteral("RC10_FUNCTION");
-        remapV3_8["SERVO11_FUNCTION"] = QStringLiteral("RC11_FUNCTION");
-        remapV3_8["SERVO12_FUNCTION"] = QStringLiteral("RC12_FUNCTION");
-        remapV3_8["SERVO13_FUNCTION"] = QStringLiteral("RC13_FUNCTION");
-        remapV3_8["SERVO14_FUNCTION"] = QStringLiteral("RC14_FUNCTION");
+        remapV4_5["AIRSPEED_MIN"] = QStringLiteral("ARSPD_FBW_MIN");
+        remapV4_5["AIRSPEED_MAX"] = QStringLiteral("ARSPD_FBW_MAX");
+        remapV4_5["RTL_ALTITUDE"] = QStringLiteral("ALT_HOLD_RTL");
+        // LAND_SPEED is only used in a Copter component
 
-        remapV3_8["SERVO5_MIN"] = QStringLiteral("RC5_MIN");
-        remapV3_8["SERVO6_MIN"] = QStringLiteral("RC6_MIN");
-        remapV3_8["SERVO7_MIN"] = QStringLiteral("RC7_MIN");
-        remapV3_8["SERVO8_MIN"] = QStringLiteral("RC8_MIN");
-        remapV3_8["SERVO9_MIN"] = QStringLiteral("RC9_MIN");
-        remapV3_8["SERVO10_MIN"] = QStringLiteral("RC10_MIN");
-        remapV3_8["SERVO11_MIN"] = QStringLiteral("RC11_MIN");
-        remapV3_8["SERVO12_MIN"] = QStringLiteral("RC12_MIN");
-        remapV3_8["SERVO13_MIN"] = QStringLiteral("RC13_MIN");
-        remapV3_8["SERVO14_MIN"] = QStringLiteral("RC14_MIN");
+        // ArduPilot 4.7: QuadPlane parameter renames and SI unit conversion
+        FirmwarePlugin::remapParamNameMap_t &remapV4_7 = _remapParamName[4][7];
 
-        remapV3_8["SERVO5_MAX"] = QStringLiteral("RC5_MAX");
-        remapV3_8["SERVO6_MAX"] = QStringLiteral("RC6_MAX");
-        remapV3_8["SERVO7_MAX"] = QStringLiteral("RC7_MAX");
-        remapV3_8["SERVO8_MAX"] = QStringLiteral("RC8_MAX");
-        remapV3_8["SERVO9_MAX"] = QStringLiteral("RC9_MAX");
-        remapV3_8["SERVO10_MAX"] = QStringLiteral("RC10_MAX");
-        remapV3_8["SERVO11_MAX"] = QStringLiteral("RC11_MAX");
-        remapV3_8["SERVO12_MAX"] = QStringLiteral("RC12_MAX");
-        remapV3_8["SERVO13_MAX"] = QStringLiteral("RC13_MAX");
-        remapV3_8["SERVO14_MAX"] = QStringLiteral("RC14_MAX");
+        // Attitude controller
+        remapV4_7["Q_A_ANGLE_MAX"]       = QStringLiteral("Q_ANGLE_MAX");
+        remapV4_7["Q_A_ACC_R_MAX"]       = QStringLiteral("Q_A_ACCEL_R_MAX");
+        remapV4_7["Q_A_ACC_P_MAX"]       = QStringLiteral("Q_A_ACCEL_P_MAX");
+        remapV4_7["Q_A_ACC_Y_MAX"]       = QStringLiteral("Q_A_ACCEL_Y_MAX");
+        remapV4_7["Q_A_RATE_WPY_MAX"]    = QStringLiteral("Q_A_SLEW_YAW");
 
-        remapV3_8["SERVO5_REVERSED"] = QStringLiteral("RC5_REVERSED");
-        remapV3_8["SERVO6_REVERSED"] = QStringLiteral("RC6_REVERSED");
-        remapV3_8["SERVO7_REVERSED"] = QStringLiteral("RC7_REVERSED");
-        remapV3_8["SERVO8_REVERSED"] = QStringLiteral("RC8_REVERSED");
-        remapV3_8["SERVO9_REVERSED"] = QStringLiteral("RC9_REVERSED");
-        remapV3_8["SERVO10_REVERSED"] = QStringLiteral("RC10_REVERSED");
-        remapV3_8["SERVO11_REVERSED"] = QStringLiteral("RC11_REVERSED");
-        remapV3_8["SERVO12_REVERSED"] = QStringLiteral("RC12_REVERSED");
-        remapV3_8["SERVO13_REVERSED"] = QStringLiteral("RC13_REVERSED");
-        remapV3_8["SERVO14_REVERSED"] = QStringLiteral("RC14_REVERSED");
+        // Loiter
+        remapV4_7["Q_LOIT_SPEED_MS"]     = QStringLiteral("Q_LOIT_SPEED");
+        remapV4_7["Q_LOIT_ACC_MAX_M"]    = QStringLiteral("Q_LOIT_ACC_MAX");
+        remapV4_7["Q_LOIT_BRK_ACC_M"]    = QStringLiteral("Q_LOIT_BRK_ACCEL");
+        remapV4_7["Q_LOIT_BRK_JRK_M"]    = QStringLiteral("Q_LOIT_BRK_JERK");
+
+        // Pilot
+        remapV4_7["Q_PILOT_SPD_UP"]      = QStringLiteral("Q_PILOT_SPEED_UP");
+        remapV4_7["Q_PILOT_SPD_DN"]      = QStringLiteral("Q_PILOT_SPEED_DN");
+        remapV4_7["Q_PILOT_TKO_ALT_M"]   = QStringLiteral("Q_PILOT_TKOFF_ALT");
+
+        // Position controller: Q_P_VELXY_* -> Q_P_NE_VEL_*
+        remapV4_7["Q_P_NE_VEL_P"]        = QStringLiteral("Q_P_VELXY_P");
+        remapV4_7["Q_P_NE_VEL_I"]        = QStringLiteral("Q_P_VELXY_I");
+        remapV4_7["Q_P_NE_VEL_D"]        = QStringLiteral("Q_P_VELXY_D");
+        remapV4_7["Q_P_NE_VEL_IMAX"]     = QStringLiteral("Q_P_VELXY_IMAX");
+        remapV4_7["Q_P_NE_VEL_FLTE"]     = QStringLiteral("Q_P_VELXY_FLTE");
+        remapV4_7["Q_P_NE_VEL_FLTD"]     = QStringLiteral("Q_P_VELXY_FLTD");
+        remapV4_7["Q_P_NE_VEL_FF"]       = QStringLiteral("Q_P_VELXY_FF");
+
+        // Position controller: Q_P_VELZ_* -> Q_P_D_VEL_*
+        remapV4_7["Q_P_D_VEL_P"]         = QStringLiteral("Q_P_VELZ_P");
+        remapV4_7["Q_P_D_VEL_I"]         = QStringLiteral("Q_P_VELZ_I");
+        remapV4_7["Q_P_D_VEL_D"]         = QStringLiteral("Q_P_VELZ_D");
+        remapV4_7["Q_P_D_VEL_IMAX"]      = QStringLiteral("Q_P_VELZ_IMAX");
+        remapV4_7["Q_P_D_VEL_FLTE"]      = QStringLiteral("Q_P_VELZ_FLTE");
+        remapV4_7["Q_P_D_VEL_FF"]        = QStringLiteral("Q_P_VELZ_FF");
+
+        // Position controller: Q_P_ACCZ_* -> Q_P_D_ACC_*
+        remapV4_7["Q_P_D_ACC_P"]         = QStringLiteral("Q_P_ACCZ_P");
+        remapV4_7["Q_P_D_ACC_I"]         = QStringLiteral("Q_P_ACCZ_I");
+        remapV4_7["Q_P_D_ACC_D"]         = QStringLiteral("Q_P_ACCZ_D");
+        remapV4_7["Q_P_D_ACC_IMAX"]      = QStringLiteral("Q_P_ACCZ_IMAX");
+        remapV4_7["Q_P_D_ACC_FLTD"]      = QStringLiteral("Q_P_ACCZ_FLTD");
+        remapV4_7["Q_P_D_ACC_FLTE"]      = QStringLiteral("Q_P_ACCZ_FLTE");
+        remapV4_7["Q_P_D_ACC_FLTT"]      = QStringLiteral("Q_P_ACCZ_FLTT");
+        remapV4_7["Q_P_D_ACC_FF"]        = QStringLiteral("Q_P_ACCZ_FF");
+        remapV4_7["Q_P_D_ACC_SMAX"]      = QStringLiteral("Q_P_ACCZ_SMAX");
+
+        // Waypoint navigation
+        remapV4_7["Q_WP_ACC"]            = QStringLiteral("Q_WP_ACCEL");
+        remapV4_7["Q_WP_ACC_CNR"]        = QStringLiteral("Q_WP_ACCEL_C");
+        remapV4_7["Q_WP_ACC_Z"]          = QStringLiteral("Q_WP_ACCEL_Z");
+        remapV4_7["Q_WP_RADIUS_M"]       = QStringLiteral("Q_WP_RADIUS");
+        remapV4_7["Q_WP_SPD"]            = QStringLiteral("Q_WP_SPEED");
+        remapV4_7["Q_WP_SPD_DN"]         = QStringLiteral("Q_WP_SPEED_DN");
+        remapV4_7["Q_WP_SPD_UP"]         = QStringLiteral("Q_WP_SPEED_UP");
+
+        // EKF
+        remapV4_7["EK3_FLOW_MAX"]        = QStringLiteral("EK3_MAX_FLOW");
+
+        // Common
+        remapV4_7["ARMING_SKIPCHK"]      = QStringLiteral("ARMING_CHECK");
 
         _remapParamNameIntialized = true;
     }
 }
 
+ArduPlaneFirmwarePlugin::~ArduPlaneFirmwarePlugin()
+{
+
+}
+
 int ArduPlaneFirmwarePlugin::remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const
 {
-    // Remapping supports up to 3.8
-    return majorVersionNumber == 3 ? 8 : Vehicle::versionNotSetValue;
+    return ((majorVersionNumber == 4) ? 7 : Vehicle::versionNotSetValue);
+}
+
+QString ArduPlaneFirmwarePlugin::takeOffFlightMode() const
+{
+    return _modeEnumToString.value(APMPlaneMode::TAKEOFF, _takeoffFlightMode);
+}
+
+QString ArduPlaneFirmwarePlugin::stabilizedFlightMode() const
+{
+    return _modeEnumToString.value(APMPlaneMode::STABILIZE, _stabilizeFlightMode);
+}
+
+QString ArduPlaneFirmwarePlugin::pauseFlightMode() const
+{
+    return _modeEnumToString.value(APMPlaneMode::LOITER, _loiterFlightMode);
+}
+
+void ArduPlaneFirmwarePlugin::updateAvailableFlightModes(FlightModeList &modeList)
+{
+    for (FirmwareFlightMode &mode: modeList) {
+        mode.fixedWing = true;
+        mode.multiRotor = true;
+    }
+
+    _updateFlightModeList(modeList);
+}
+
+uint32_t ArduPlaneFirmwarePlugin::_convertToCustomFlightModeEnum(uint32_t val) const
+{
+    switch (val) {
+    case APMCustomMode::AUTO:
+        return APMPlaneMode::AUTO;
+    case APMCustomMode::GUIDED:
+        return APMPlaneMode::GUIDED;
+    case APMCustomMode::RTL:
+        return APMPlaneMode::RTL;
+    case APMCustomMode::SMART_RTL:
+        return APMPlaneMode::RTL;
+    default:
+        return UINT32_MAX;
+    }
 }

@@ -1,21 +1,10 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtPositioning
 
-import QtQuick          2.3
-import QtQuick.Controls 1.2
-import QtQuick.Layouts  1.2
-import QtPositioning    5.3
-
-import QGroundControl               1.0
-import QGroundControl.ScreenTools   1.0
-import QGroundControl.Controls      1.0
-import QGroundControl.Palette       1.0
+import QGroundControl
+import QGroundControl.Controls
 
 DropButton {
     id:                 dropButton
@@ -34,8 +23,6 @@ DropButton {
     property bool   showAllItems:         true
     property bool   showFollowVehicle:    false
     property bool   followVehicle:        false
-
-    property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
 
     function fitHomePosition() {
         var homePosition = QtPositioning.coordinate()
@@ -61,7 +48,7 @@ DropButton {
     /// Fits the visible region of the map to inclues all of the specified coordinates. If no coordinates
     /// are specified the map will center to fitHomePosition()
     function fitMapViewportToAllCoordinates(coordList) {
-        if (coordList.length == 0) {
+        if (coordList.length === 0) {
             map.center = fitHomePosition()
             return
         }
@@ -115,16 +102,17 @@ DropButton {
     }
 
     function addFenceItemCoordsForFit(coordList) {
+        var i
         var homePosition = fitHomePosition()
         if (homePosition.isValid && geoFenceController.circleEnabled) {
             var azimuthList = [ 0, 180, 90, 270 ]
-            for (var i=0; i<azimuthList.length; i++) {
+            for (i = 0; i < azimuthList.length; i++) {
                 var edgeCoordinate = homePosition.atDistanceAndAzimuth(geoFenceController.circleRadius, azimuthList[i])
                 coordList.push(edgeCoordinate)
             }
         }
         if (geoFenceController.polygonEnabled && geoFenceController.polygon.count() > 2) {
-            for (var i=0; i<geoFenceController.polygon.count(); i++) {
+            for (i = 0; i < geoFenceController.polygon.count(); i++) {
                 coordList.push(geoFenceController.polygon.path[i])
             }
         }
@@ -208,14 +196,25 @@ DropButton {
                 }
             }
 
+
             QGCButton {
-                text:               qsTr("Vehicle")
+                text:               qsTr("Specified Location")
                 Layout.fillWidth:   true
-                enabled:            _activeVehicle && _activeVehicle.latitude != 0 && _activeVehicle.longitude != 0 && !followVehicleCheckBox.checked
 
                 onClicked: {
                     dropButton.hideDropDown()
-                    map.center = activeVehicle.coordinate
+                    map.centerToSpecifiedLocation()
+                }
+            }
+
+            QGCButton {
+                text:               qsTr("Vehicle")
+                Layout.fillWidth:   true
+                enabled:            globals.activeVehicle && globals.activeVehicle.latitude != 0 && globals.activeVehicle.longitude != 0 && !followVehicleCheckBox.checked
+
+                onClicked: {
+                    dropButton.hideDropDown()
+                    map.center = globals.activeVehicle.coordinate
                 }
             }
 

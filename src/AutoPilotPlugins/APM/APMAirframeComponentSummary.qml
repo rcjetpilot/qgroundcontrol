@@ -1,54 +1,42 @@
-import QtQuick 2.3
-import QtQuick.Controls 1.2
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
-import QGroundControl.FactSystem 1.0
-import QGroundControl.FactControls 1.0
-import QGroundControl.Controls 1.0
-import QGroundControl.Controllers 1.0
-import QGroundControl.Palette 1.0
+import QGroundControl
+import QGroundControl.FactControls
+import QGroundControl.Controls
 
-FactPanel {
-    id:             panel
-    anchors.fill:   parent
-    color:          qgcPal.windowShadeDark
+Item {
+    implicitWidth: mainLayout.implicitWidth
+    implicitHeight: mainLayout.implicitHeight
+    width: parent.width  // grows when Loader is wider than implicitWidth
 
-    QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
-    APMAirframeComponentController {
-        id:         controller
-        factPanel:  panel
-    }
+    APMAirframeComponentController {id: controller; }
 
-    property bool _useOldFrameParam:    controller.parameterExists(-1, "FRAME")
-    property Fact _oldFrameParam:       controller.getParameterFact(-1, "FRAME", false)
-    property Fact _newFrameParam:       controller.getParameterFact(-1, "FRAME_CLASS", false)
-    property Fact _frameTypeParam:      controller.getParameterFact(-1, "FRAME_TYPE", false)
+    property Fact _frameClass:          controller.getParameterFact(-1, "FRAME_CLASS")
+    property Fact _frameType:           controller.getParameterFact(-1, "FRAME_TYPE", false)
+    property bool _frameTypeAvailable:  controller.parameterExists(-1, "FRAME_TYPE")
 
-    Column {
-        anchors.fill:       parent
+    ColumnLayout {
+        id: mainLayout
+        width: parent.width
+        spacing: 0
 
         VehicleSummaryRow {
-            labelText:  qsTr("Frame Type:")
-            valueText:  controller.currentAirframeTypeName() + " " + _oldFrameParam.enumStringValue
-            visible:    _useOldFrameParam
-        }
-
-        VehicleSummaryRow {
-            labelText:  qsTr("Frame Class:")
-            valueText:  _newFrameParam.enumStringValue
-            visible:    !_useOldFrameParam
+            labelText:  qsTr("Frame Class")
+            valueText:  _frameClass.enumStringValue
 
         }
 
         VehicleSummaryRow {
-            labelText:  qsTr("Frame Type:")
-            valueText:  _frameTypeParam.enumStringValue
-            visible:    !_useOldFrameParam
-
+            labelText:  qsTr("Frame Type")
+            valueText:  visible ? _frameType.enumStringValue : ""
+            visible:    _frameTypeAvailable
         }
 
         VehicleSummaryRow {
-            labelText: qsTr("Firmware Version:")
-            valueText: activeVehicle.firmwareMajorVersion == -1 ? qsTr("Unknown") : activeVehicle.firmwareMajorVersion + "." + activeVehicle.firmwareMinorVersion + "." + activeVehicle.firmwarePatchVersion + activeVehicle.firmwareVersionTypeString
+            labelText: qsTr("Firmware Version")
+            valueText: globals.activeVehicle.firmwareMajorVersion == -1 ? qsTr("Unknown") : globals.activeVehicle.firmwareMajorVersion + "." + globals.activeVehicle.firmwareMinorVersion + "." + globals.activeVehicle.firmwarePatchVersion + globals.activeVehicle.firmwareVersionTypeString
         }
     }
 }

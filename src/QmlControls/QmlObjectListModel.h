@@ -1,83 +1,48 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+#pragma once
 
+#include "ObjectListModelBase.h"
 
-#ifndef QmlObjectListModel_H
-#define QmlObjectListModel_H
-
-#include <QAbstractListModel>
-
-class QmlObjectListModel : public QAbstractListModel
+class QmlObjectListModel : public ObjectListModelBase
 {
     Q_OBJECT
-    
+    QML_ELEMENT
+    QML_UNCREATABLE("")
+
 public:
-    QmlObjectListModel(QObject* parent = NULL);
-    ~QmlObjectListModel();
-    
-    Q_PROPERTY(int count READ count NOTIFY countChanged)
-    
-    /// Returns true if any of the items in the list are dirty. Requires each object to have
-    /// a dirty property and dirtyChanged signal.
-    Q_PROPERTY(bool dirty READ dirty WRITE setDirty NOTIFY dirtyChanged)
+    QmlObjectListModel(QObject* parent = nullptr);
 
-    Q_INVOKABLE QObject* get(int index)     { return _objectList[index]; }
+    // Overrides from ObjectListModelBase
+    int count() const override final;
+    bool isEmpty() const override final { return count() == 0; }
+    void setDirty(bool dirty) override final;
+    void clear() override final;
+    QObject* removeOne(const QObject* object) override final { return removeAt(indexOf(object)); }
+    bool contains(const QObject* object) override final { return _objectList.indexOf(object) != -1; }
+    void clearAndDeleteContents() override final; ///< Clears the list and calls deleteLater on each entry
 
-    // Property accessors
-    
-    int count(void) const;
-    
-    bool dirty(void) const { return _dirty; }
-    void setDirty(bool dirty);
-    
-    void append(QObject* object);
+    // QmlObjectListModel specific methods
+    Q_INVOKABLE QObject* get(int index);
+    QObject* operator[](int index);
+    const QObject* operator[](int index) const;
+    void append(QObject* object); ///< Caller maintains responsibility for object ownership and deletion
+    void append(QList<QObject*> objects); ///< Caller maintains responsibility for object ownership and deletion
     QObjectList swapObjectList(const QObjectList& newlist);
-    void clear(void);
-    QObject* removeAt(int i);
-    QObject* removeOne(QObject* object) { return removeAt(indexOf(object)); }
-    void insert(int i, QObject* object);
-    QObject* operator[](int i);
-    const QObject* operator[](int i) const;
-    bool contains(QObject* object) { return _objectList.indexOf(object) != -1; }
-    int indexOf(QObject* object) { return _objectList.indexOf(object); }
-    template<class T> T value(int index) { return qobject_cast<T>(_objectList[index]); }
+    QObject* removeAt(int index);
+    void insert(int index, QObject* object);
+    void insert(int index, QList<QObject*> objects);
+    int indexOf(const QObject* object) { return _objectList.indexOf(object); }
+    void move(int from, int to);
+    template<class T> T value(int index) const { return qobject_cast<T>(_objectList[index]); }
+    QList<QObject*>* objectList() { return &_objectList; }
 
-    /// Calls deleteLater on all items and this itself.
-    void deleteListAndContents(void);
-
-    /// Clears the list and calls deleteLater on each entry
-    void clearAndDeleteContents(void);
-
-signals:
-    void countChanged(int count);
-    void dirtyChanged(bool dirtyChanged);
-    
-private slots:
-    void _childDirtyChanged(bool dirty);
-    
-private:
+protected:
     // Overrides from QAbstractListModel
-    virtual int	rowCount(const QModelIndex & parent = QModelIndex()) const;
-    virtual QVariant data(const QModelIndex & index, int role = Qt::DisplayRole) const;
-    virtual QHash<int, QByteArray> roleNames(void) const;
-    virtual bool insertRows(int position, int rows, const QModelIndex &index = QModelIndex());
-    virtual bool removeRows(int position, int rows, const QModelIndex &index = QModelIndex());
-    virtual bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole);
-	
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+    bool insertRows(int position, int rows, const QModelIndex& index = QModelIndex()) override;
+    bool removeRows(int position, int rows, const QModelIndex& index = QModelIndex()) override;
+    bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole) override;
+
 private:
     QList<QObject*> _objectList;
-    
-    bool _dirty;
-    bool _skipDirtyFirstItem;
-        
-    static const int ObjectRole;
-    static const int TextRole;
 };
-
-#endif

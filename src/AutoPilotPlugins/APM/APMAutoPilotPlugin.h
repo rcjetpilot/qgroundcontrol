@@ -1,67 +1,77 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
-
-#ifndef APMAutoPilotPlugin_H
-#define APMAutoPilotPlugin_H
+#pragma once
 
 #include "AutoPilotPlugin.h"
-#include "Vehicle.h"
 
 class APMAirframeComponent;
-class APMAirframeLoader;
+class APMAirspeedComponent;
 class APMFlightModesComponent;
 class APMRadioComponent;
 class APMTuningComponent;
-class APMSafetyComponent;
+class APMAdvancedTuningCopterComponent;
+class APMFailsafesComponent;
+class APMFlightSafetyComponent;
 class APMSensorsComponent;
+class APMESCComponent;
 class APMPowerComponent;
-class MotorComponent;
-class APMCameraComponent;
+class APMMotorComponent;
+class APMGimbalComponent;
 class APMLightsComponent;
 class APMSubFrameComponent;
+class APMServoComponent;
 class ESP8266Component;
+class APMHeliComponent;
+class APMLoggingComponent;
+class APMRemoteSupportComponent;
+class APMFollowComponent;
+class JoystickComponent;
+class ScriptingComponent;
+class Vehicle;
 
-/// This is the APM specific implementation of the AutoPilot class.
+/// \brief This is the AutoPilotPlugin implementation for the MAV_AUTOPILOT_ARDUPILOT type.
+///
 class APMAutoPilotPlugin : public AutoPilotPlugin
 {
     Q_OBJECT
 
 public:
-    APMAutoPilotPlugin(Vehicle* vehicle, QObject* parent);
+    explicit APMAutoPilotPlugin(Vehicle *vehicle, QObject *parent = nullptr);
     ~APMAutoPilotPlugin();
 
-    // Overrides from AutoPilotPlugin
-    const QVariantList& vehicleComponents(void) final;
-    QString prerequisiteSetup(VehicleComponent* component) const override;
+    const QVariantList &vehicleComponents() override;
+    QString prerequisiteSetup(VehicleComponent *component) const override;
 
 protected:
-    bool                        _incorrectParameterVersion; ///< true: parameter version incorrect, setup not allowed
-    APMAirframeComponent*       _airframeComponent;
-    APMCameraComponent*         _cameraComponent;
-    APMLightsComponent*         _lightsComponent;
-    APMSubFrameComponent*       _subFrameComponent;
-    APMFlightModesComponent*    _flightModesComponent;
-    APMPowerComponent*          _powerComponent;
-#if 0
-    // Temporarily removed, waiting for new command implementation
-    MotorComponent*             _motorComponent;
+    bool _incorrectParameterVersion = false; ///< true: parameter version incorrect, setup not allowed
+    APMAirframeComponent *_airframeComponent = nullptr;
+    APMAirspeedComponent *_airspeedComponent = nullptr;
+    APMGimbalComponent *_gimbalComponent = nullptr;
+    APMLightsComponent *_lightsComponent = nullptr;
+    APMSubFrameComponent *_subFrameComponent = nullptr;
+    APMFlightModesComponent *_flightModesComponent = nullptr;
+    APMServoComponent *_servoComponent = nullptr;
+    APMPowerComponent *_powerComponent = nullptr;
+    APMESCComponent *_escComponent = nullptr;
+    APMMotorComponent *_motorComponent = nullptr;
+    APMRadioComponent *_radioComponent = nullptr;
+    APMFailsafesComponent *_failsafesComponent = nullptr;
+    APMFlightSafetyComponent *_flightSafetyComponent = nullptr;
+    APMSensorsComponent *_sensorsComponent = nullptr;
+    APMTuningComponent *_tuningComponent = nullptr;
+    APMAdvancedTuningCopterComponent *_advancedTuningCopterComponent = nullptr;
+    ESP8266Component *_esp8266Component = nullptr;
+    APMHeliComponent *_heliComponent = nullptr;
+    APMLoggingComponent *_loggingComponent = nullptr;
+    APMRemoteSupportComponent *_apmRemoteSupportComponent = nullptr;
+    APMFollowComponent *_followComponent = nullptr;
+    JoystickComponent *_joystickComponent = nullptr;
+    ScriptingComponent *_scriptingComponent = nullptr;
+
+#ifndef QGC_NO_SERIAL_LINK
+private slots:
+    /// Executed when the Vehicle is parameter ready. It checks for the service bulletin against Cube Blacks.
+    void _checkForBadCubeBlack(bool parametersReady);
 #endif
-    APMRadioComponent*          _radioComponent;
-    APMSafetyComponent*         _safetyComponent;
-    APMSensorsComponent*        _sensorsComponent;
-    APMTuningComponent*         _tuningComponent;
-    APMAirframeLoader*          _airframeFacts;
-    ESP8266Component*           _esp8266Component;
 
 private:
-    QVariantList                _components;
+    QVariantList _components;
 };
-
-#endif

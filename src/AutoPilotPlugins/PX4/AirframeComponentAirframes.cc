@@ -1,17 +1,7 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
-
-/// @file
-///     @author Don Gagne <don@thegagnes.com>
-
 #include "AirframeComponentAirframes.h"
+
+#include <QtCore/QFile>
+#include <QtCore/QStringList>
 
 QMap<QString, AirframeComponentAirframes::AirframeType_t*> AirframeComponentAirframes::rgAirframeTypes;
 
@@ -23,7 +13,7 @@ QMap<QString, AirframeComponentAirframes::AirframeType_t*>& AirframeComponentAir
         // Standard planes
         AirframeType_t *standardPlane = new AirframeType_t;
         standardPlane->name = "Standard Airplane";
-        standardPlane->imageResource = "qrc:/qmlimages/AirframeStandardPlane.png";
+        standardPlane->imageResource = "qrc:/qmlimages/Airframe/Plane.svg";
         AirframeInfo_t *easystar = new AirframeInfo_t;
         easystar->name = "Multiplex Easystar 1/2";
         easystar->autostartId = 2100;
@@ -38,15 +28,67 @@ QMap<QString, AirframeComponentAirframes::AirframeType_t*>& AirframeComponentAir
     return rgAirframeTypes;
 }
 
-void AirframeComponentAirframes::insert(QString& group, QString& image, QString& name, int id)
+QList<AirframeComponentAirframes::AirframeType_t*> AirframeComponentAirframes::sortedTypes()
 {
+    // Standard airframes show first so users don't have to scroll past the
+    // exotic frames to find a regular quad. The remainder follows in QMap
+    // (alphabetical) order.
+    static const char *priorityNames[] = {
+        "Quadrotor x",
+        "Standard Plane",
+        "Standard VTOL",
+    };
+
+    QList<AirframeType_t*> sorted;
+    for (const char *name : priorityNames) {
+        AirframeType_t *type = rgAirframeTypes.value(QLatin1String(name), nullptr);
+        if (type) {
+            sorted.append(type);
+        }
+    }
+    for (AirframeType_t *type : rgAirframeTypes) {
+        if (!sorted.contains(type)) {
+            sorted.append(type);
+        }
+    }
+
+    return sorted;
+}
+
+bool AirframeComponentAirframes::find(int autostartId, QString& typeName, QString& vehicleName)
+{
+    for (const AirframeType_t* type : std::as_const(rgAirframeTypes)) {
+        for (const AirframeInfo_t* info : std::as_const(type->rgAirframeInfo)) {
+            if (info->autostartId == autostartId) {
+                typeName = type->name;
+                vehicleName = info->name;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void AirframeComponentAirframes::insert(QString& group, QString& image, QString& name, int id,
+                                        const QString& vehicleClass)
+{
+    static const QStringList knownCategories = {
+        QStringLiteral("Copter"),
+        QStringLiteral("Plane"),
+        QStringLiteral("VTOL"),
+        QStringLiteral("Rover"),
+    };
+    const QString category = knownCategories.contains(vehicleClass) ? vehicleClass : QStringLiteral("Other");
+
     AirframeType_t *g;
     if (!rgAirframeTypes.contains(group)) {
         g = new AirframeType_t;
         g->name = group;
+        g->category = category;
 
         if (image.length() > 0) {
-            g->imageResource = QString(":/qmlimages/Airframe/").append(image);
+            g->imageResource = QString(":/qmlimages/Airframe/%1.svg").arg(image);
             if (!QFile::exists(g->imageResource)) {
                 g->imageResource.clear();
             } else {
@@ -55,12 +97,15 @@ void AirframeComponentAirframes::insert(QString& group, QString& image, QString&
         }
 
         if (g->imageResource.isEmpty()) {
-            g->imageResource = QString("qrc:/qmlimages/Airframe/AirframeUnknown");
+            g->imageResource = QString("qrc:/qmlimages/Airframe/AirframeUnknown.svg");
         }
 
         rgAirframeTypes.insert(group, g);
     } else {
         g = rgAirframeTypes.value(group);
+        if (g->category != category) {
+            g->category = QStringLiteral("Other");
+        }
     }
 
     AirframeInfo_t *i = new AirframeInfo_t;

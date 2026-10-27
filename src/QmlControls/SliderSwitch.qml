@@ -1,35 +1,56 @@
-import QtQuick                  2.3
-import QtQuick.Controls         1.2
+import QtQuick
+import QtQuick.Controls
 
-import QGroundControl.ScreenTools   1.0
-import QGroundControl.Palette       1.0
+import QGroundControl
+import QGroundControl.Controls
 
 /// The SliderSwitch control implements a sliding switch control similar to the power off
-/// control on an iPhone.
+/// control on an iPhone. It supports holding the space bar to slide the switch.
 Rectangle {
     id:             _root
     implicitWidth:  label.contentWidth + (_diameter * 2.5) + (_border * 4)
     implicitHeight: label.height * 2.5
     radius:         height /2
-    color:          qgcPal.text
+    color:          qgcPal.windowCard
 
     signal accept   ///< Action confirmed
-    signal reject   ///< Action rejected
 
     property string confirmText                         ///< Text for slider
     property alias  fontPointSize: label.font.pointSize ///< Point size for text
 
-    property real _border: 4
-    property real _diameter: height - (_border * 2)
+    property real _border:                      4
+    property real _diameter:                    height - (_border * 2)
+    property real _dragStartX:                  _border
+    property real _dragStopX:                   _root.width - (_diameter + _border)
+
+    Keys.onSpacePressed: (event) => {
+        if (visible && event.modifiers === Qt.NoModifier && !sliderDragArea.drag.active) {
+            event.accepted = true
+            sliderAnimation.start()
+        }
+    }
+
+    Keys.onReleased: (event) => {
+        if (visible && event.key === Qt.Key_Space && !event.isAutoRepeat) {
+            event.accepted = true
+            resetSpaceBarSliding()
+        }
+    }
+
+    function resetSpaceBarSliding() {
+        slider.reset()
+    }
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
     QGCLabel {
         id:                         label
-        anchors.horizontalCenter:   parent.horizontalCenter
+        x:                          _diameter + _border
+        width:                      parent.width - x
         anchors.verticalCenter:     parent.verticalCenter
+        horizontalAlignment:        Text.AlignHCenter
         text:                       confirmText
-        color:                      qgcPal.window
+        color:                      qgcPal.textPrimary
     }
 
     Rectangle {
@@ -39,8 +60,7 @@ Rectangle {
         height:     _diameter
         width:      _diameter
         radius:     _diameter / 2
-        color:      qgcPal.windowShade
-        opacity:    0.8
+        color:      qgcPal.accent
 
         QGCColoredImage {
             anchors.centerIn:       parent
@@ -50,11 +70,28 @@ Rectangle {
             fillMode:               Image.PreserveAspectFit
             smooth:                 false
             mipmap:                 false
-            color:                  qgcPal.text
+            color:                  qgcPal.textPrimary
             cache:                  false
             source:                 "/res/ArrowRight.svg"
         }
 
+        PropertyAnimation on x {
+            id:         sliderAnimation
+            duration:   1500
+            from:       _dragStartX
+            to:         _dragStopX
+            running:    false
+
+            onFinished: {
+                slider.reset()
+                _root.accept()
+            }
+        }
+
+        function reset() {
+            slider.x = _border
+            sliderAnimation.stop()
+        }
     }
 
     QGCMouseArea {
@@ -63,26 +100,18 @@ Rectangle {
         fillItem:           slider
         drag.target:        slider
         drag.axis:          Drag.XAxis
-        drag.minimumX:      _border
-        drag.maximumX:      _maxXDrag
+        drag.minimumX:      _dragStartX
+        drag.maximumX:      _dragStopX
         preventStealing:    true
 
-        property real _maxXDrag:    _root.width - (_diameter + _border)
-        property bool dragActive:   drag.active
-        property real _dragOffset:  1
-
-        Component.onCompleted: console.log(height, ScreenTools.minTouchPixels)
-
-        onPressed: {
-            mouse.x
-        }
+        property bool dragActive: drag.active
 
         onDragActiveChanged: {
             if (!sliderDragArea.drag.active) {
-                if (slider.x > _maxXDrag - _border) {
+                if (slider.x > _dragStopX - _border) {
                     _root.accept()
                 }
-                slider.x = _border
+                slider.reset()
             }
         }
     }

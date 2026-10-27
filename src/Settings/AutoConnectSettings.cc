@@ -1,125 +1,63 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
 #include "AutoConnectSettings.h"
 #include "LinkManager.h"
 
-#include <QQmlEngine>
-#include <QtQml>
-
-const char* AutoConnectSettings::_settingsGroup =                       "LinkManager";
-
-const char* AutoConnectSettings:: autoConnectUDPSettingsName =          "AutoconnectUDP";
-const char* AutoConnectSettings:: autoConnectPixhawkSettingsName =      "AutoconnectPixhawk";
-const char* AutoConnectSettings:: autoConnectSiKRadioSettingsName =     "Autoconnect3DRRadio";
-const char* AutoConnectSettings:: autoConnectPX4FlowSettingsName =      "AutoconnectPX4Flow";
-const char* AutoConnectSettings:: autoConnectRTKGPSSettingsName =       "AutoconnectRTKGPS";
-const char* AutoConnectSettings:: autoConnectLibrePilotSettingsName =   "AutoconnectLibrePilot";
-const char* AutoConnectSettings:: udpListenPortName =                   "AutoconnectUDPListenPort";
-const char* AutoConnectSettings:: udpTargetHostIPName =                 "AutoconnectUDPTargetHostIP";
-const char* AutoConnectSettings:: udpTargetHostPortName =               "AutoconnectUDPTargetHostPort";
-
-const char* AutoConnectSettings::autoConnectSettingsGroupName = "AutoConnect";
-
-AutoConnectSettings::AutoConnectSettings(QObject* parent)
-    : SettingsGroup             (autoConnectSettingsGroupName, _settingsGroup, parent)
-    , _autoConnectUDPFact       (NULL)
-    , _autoConnectPixhawkFact   (NULL)
-    , _autoConnectSiKRadioFact  (NULL)
-    , _autoConnectPX4FlowFact   (NULL)
-    , _autoConnectRTKGPSFact    (NULL)
-    , _autoConnectLibrePilotFact(NULL)
-    , _udpListenPortFact        (NULL)
-    , _udpTargetHostIPFact      (NULL)
-    , _udpTargetHostPortFact    (NULL)
+DECLARE_SETTINGGROUP(AutoConnect, "AutoConnect")
 {
-    QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
-    qmlRegisterUncreatableType<AutoConnectSettings>("QGroundControl.SettingsManager", 1, 0, "AutoConnectSettings", "Reference only");
-}
+    // Settings group name was changed from "LinkManager" to "AutoConnect" in v5.0.0
+    // Copy over an old settings to the new name
+    QSettings settings;
+    static const char* deprecatedGroupName = "LinkManager";
+    if (settings.childGroups().contains(deprecatedGroupName)) {
+        settings.beginGroup(deprecatedGroupName);
+        QList<QPair<QString, QVariant>> values;
+        for (const QString& key: settings.childKeys()) {
+            values.append(QPair<QString, QVariant>(key, settings.value(key)));
+        }
+        settings.endGroup();
+        settings.remove(deprecatedGroupName);
 
-Fact* AutoConnectSettings::autoConnectUDP(void)
-{
-    if (!_autoConnectUDPFact) {
-        _autoConnectUDPFact = _createSettingsFact(autoConnectUDPSettingsName);
+        settings.beginGroup(_name);
+        for (const QPair<QString, QVariant>& pair: values) {
+            settings.setValue(pair.first, pair.second);
+        }
+        settings.endGroup();
     }
-
-    return _autoConnectUDPFact;
 }
 
-Fact* AutoConnectSettings::autoConnectPixhawk(void)
+DECLARE_SETTINGSFACT(AutoConnectSettings, autoConnectUDP)
+DECLARE_SETTINGSFACT(AutoConnectSettings, udpListenPort)
+DECLARE_SETTINGSFACT(AutoConnectSettings, udpTargetHostIP)
+DECLARE_SETTINGSFACT(AutoConnectSettings, udpTargetHostPort)
+
+DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectPixhawk)
 {
     if (!_autoConnectPixhawkFact) {
-        _autoConnectPixhawkFact = _createSettingsFact(autoConnectPixhawkSettingsName);
+        _autoConnectPixhawkFact = _createSettingsFact(autoConnectPixhawkName);
+#ifdef Q_OS_IOS
+        _autoConnectPixhawkFact->setUserVisible(false);
+#endif
     }
-
     return _autoConnectPixhawkFact;
 }
 
-Fact* AutoConnectSettings::autoConnectSiKRadio(void)
+DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectSiKRadio)
 {
     if (!_autoConnectSiKRadioFact) {
-        _autoConnectSiKRadioFact = _createSettingsFact(autoConnectSiKRadioSettingsName);
+        _autoConnectSiKRadioFact = _createSettingsFact(autoConnectSiKRadioName);
+#ifdef Q_OS_IOS
+        _autoConnectSiKRadioFact->setUserVisible(false);
+#endif
     }
-
     return _autoConnectSiKRadioFact;
 }
 
-Fact* AutoConnectSettings::autoConnectPX4Flow(void)
-{
-    if (!_autoConnectPX4FlowFact) {
-        _autoConnectPX4FlowFact = _createSettingsFact(autoConnectPX4FlowSettingsName);
-    }
-
-    return _autoConnectPX4FlowFact;
-}
-
-Fact* AutoConnectSettings::autoConnectRTKGPS(void)
-{
-    if (!_autoConnectRTKGPSFact) {
-        _autoConnectRTKGPSFact = _createSettingsFact(autoConnectRTKGPSSettingsName);
-    }
-
-    return _autoConnectRTKGPSFact;
-}
-
-Fact* AutoConnectSettings::autoConnectLibrePilot(void)
+DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectLibrePilot)
 {
     if (!_autoConnectLibrePilotFact) {
-        _autoConnectLibrePilotFact = _createSettingsFact(autoConnectLibrePilotSettingsName);
+        _autoConnectLibrePilotFact = _createSettingsFact(autoConnectLibrePilotName);
+#ifdef Q_OS_IOS
+        _autoConnectLibrePilotFact->setUserVisible(false);
+#endif
     }
-
     return _autoConnectLibrePilotFact;
-}
-
-Fact* AutoConnectSettings::udpListenPort(void)
-{
-    if (!_udpListenPortFact) {
-        _udpListenPortFact = _createSettingsFact(udpListenPortName);
-    }
-
-    return _udpListenPortFact;
-}
-
-Fact* AutoConnectSettings::udpTargetHostIP(void)
-{
-    if (!_udpTargetHostIPFact) {
-        _udpTargetHostIPFact = _createSettingsFact(udpTargetHostIPName);
-    }
-
-    return _udpTargetHostIPFact;
-}
-
-Fact* AutoConnectSettings::udpTargetHostPort(void)
-{
-    if (!_udpTargetHostPortFact) {
-        _udpTargetHostPortFact = _createSettingsFact(udpTargetHostPortName);
-    }
-
-    return _udpTargetHostPortFact;
 }

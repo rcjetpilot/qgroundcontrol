@@ -1,35 +1,19 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+#pragma once
 
+#include <QtCore/QObject>
+#include <QtCore/QString>
+#include <QtCore/QTextStream>
+#include <QtCore/QJsonObject>
+#include <QtPositioning/QGeoCoordinate>
+#include <QtQmlIntegration/QtQmlIntegration>
 
-#ifndef MissionItem_H
-#define MissionItem_H
-
-#include <QObject>
-#include <QString>
-#include <QtQml>
-#include <QTextStream>
-#include <QJsonObject>
-#include <QGeoCoordinate>
-
-#include "QGCMAVLink.h"
-#include "QGC.h"
-#include "MavlinkQmlSingleton.h"
-#include "QmlObjectListModel.h"
 #include "Fact.h"
-#include "QGCLoggingCategory.h"
-#include "QmlObjectListModel.h"
+#include "QGCMAVLink.h"
 
-class SurveyMissionItem;
+class SurveyComplexItem;
 class SimpleMissionItem;
 class MissionController;
-#ifdef UNITTEST_BUILD
+#ifdef QGC_UNITTEST_BUILD
     class MissionItemTest;
 #endif
 
@@ -37,9 +21,10 @@ class MissionController;
 class MissionItem : public QObject
 {
     Q_OBJECT
-    
+    QML_ELEMENT
+    QML_UNCREATABLE("")
 public:
-    MissionItem(QObject* parent = NULL);
+    MissionItem(QObject* parent = nullptr);
 
     MissionItem(int             sequenceNumber,
                 MAV_CMD         command,
@@ -53,14 +38,14 @@ public:
                 double          param7,
                 bool            autoContinue,
                 bool            isCurrentItem,
-                QObject*        parent = NULL);
+                QObject*        parent = nullptr);
 
-    MissionItem(const MissionItem& other, QObject* parent = NULL);
+    MissionItem(const MissionItem& other, QObject* parent = nullptr);
 
     ~MissionItem();
 
     const MissionItem& operator=(const MissionItem& other);
-    
+
     MAV_CMD         command         (void) const { return (MAV_CMD)_commandFact.rawValue().toInt(); }
     bool            isCurrentItem   (void) const { return _isCurrentItem; }
     int             sequenceNumber  (void) const { return _sequenceNumber; }
@@ -82,6 +67,9 @@ public:
     /// @return Flight gimbal yaw change value if this item supports it. If not it returns NaN.
     double specifiedGimbalYaw(void) const;
 
+    /// @return Flight gimbal pitch change value if this item supports it. If not it returns NaN.
+    double specifiedGimbalPitch(void) const;
+
     void setCommand         (MAV_CMD command);
     void setSequenceNumber  (int sequenceNumber);
     void setIsCurrentItem   (bool isCurrentItem);
@@ -94,8 +82,7 @@ public:
     void setParam5          (double param5);
     void setParam6          (double param6);
     void setParam7          (double param7);
-    void setCoordinate      (const QGeoCoordinate& coordinate);
-    
+
     void save(QJsonObject& json) const;
     bool load(QTextStream &loadStream);
     bool load(const QJsonObject& json, int sequenceNumber, QString& errorString);
@@ -107,10 +94,12 @@ signals:
     void sequenceNumberChanged      (int sequenceNumber);
     void specifiedFlightSpeedChanged(double flightSpeed);
     void specifiedGimbalYawChanged  (double gimbalYaw);
+    void specifiedGimbalPitchChanged(double gimbalPitch);
 
 private slots:
-    void _param2Changed         (QVariant value);
-    void _param3Changed         (QVariant value);
+    void _param1Changed(QVariant value);
+    void _param2Changed(QVariant value);
+    void _param3Changed(QVariant value);
 
 private:
     bool _convertJsonV1ToV2(const QJsonObject& json, QJsonObject& v2Json, QString& errorString);
@@ -130,29 +119,27 @@ private:
     Fact    _param5Fact;
     Fact    _param6Fact;
     Fact    _param7Fact;
-    
-    // Keys for Json save
-    static const char*  _jsonFrameKey;
-    static const char*  _jsonCommandKey;
-    static const char*  _jsonAutoContinueKey;
-    static const char*  _jsonParamsKey;
-    static const char*  _jsonDoJumpIdKey;
 
-    // Deprecated V2 format keys
-    static const char*  _jsonCoordinateKey;
+    // Keys for Json save
+    static constexpr const char*  _jsonFrameKey =           "frame";
+    static constexpr const char*  _jsonCommandKey =         "command";
+    static constexpr const char*  _jsonAutoContinueKey =    "autoContinue";
+    static constexpr const char*  _jsonParamsKey =          "params";
+    static constexpr const char*  _jsonDoJumpIdKey =        "doJumpId";
 
     // Deprecated V1 format keys
-    static const char*  _jsonParam1Key;
-    static const char*  _jsonParam2Key;
-    static const char*  _jsonParam3Key;
-    static const char*  _jsonParam4Key;
+    static constexpr const char*  _jsonParam1Key =          "param1";
+    static constexpr const char*  _jsonParam2Key =          "param2";
+    static constexpr const char*  _jsonParam3Key =          "param3";
+    static constexpr const char*  _jsonParam4Key =          "param4";
 
-    friend class SurveyMissionItem;
+    // Deprecated V2 format keys
+    static constexpr const char*  _jsonCoordinateKey =      "coordinate";
+
+    friend class SurveyComplexItem;
     friend class SimpleMissionItem;
     friend class MissionController;
-#ifdef UNITTEST_BUILD
+#ifdef QGC_UNITTEST_BUILD
     friend class MissionItemTest;
 #endif
 };
-
-#endif

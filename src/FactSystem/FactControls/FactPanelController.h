@@ -1,69 +1,63 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+#pragma once
 
+#include <QtCore/QObject>
+#include <QtCore/QPointer>
+#include <QtCore/QStringList>
+#include <QtCore/QTimer>
+#include <QtQmlIntegration/QtQmlIntegration>
 
-#ifndef FactPanelController_H
-#define FactPanelController_H
+class Vehicle;
+class Fact;
+class ParameterManager;
 
-/// @file
-///     @author Don Gagne <don@thegagnes.com>
-
-#include <QObject>
-#include <QQuickItem>
-
-#include "UASInterface.h"
-#include "AutoPilotPlugin.h"
-#include "QGCLoggingCategory.h"
-
-Q_DECLARE_LOGGING_CATEGORY(FactPanelControllerLog)
-
-/// FactPanelController is used in combination with the FactPanel Qml control for handling
-/// missing Facts from C++ code.
+/// \brief Used for handling missing Facts from C++ code.
+///
 class FactPanelController : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
+    Q_MOC_INCLUDE("Vehicle.h")
+    Q_MOC_INCLUDE("Fact.h")
+    Q_PROPERTY(Vehicle *vehicle MEMBER _vehicle CONSTANT)
+    /// Set by pages that mark reboot-required settings themselves. Suppresses the vehicle reboot notice until cleared
+    /// or the controller is destroyed.
+    Q_PROPERTY(bool suppressRebootMessage READ suppressRebootMessage WRITE setSuppressRebootMessage NOTIFY
+                   suppressRebootMessageChanged)
 
 public:
-    /// @param standaloneUnitTesting true: being run without factPanel, false: normal operation, factPanel is required
-    FactPanelController(bool standaloneUnitTesting = false);
+    explicit FactPanelController(QObject *parent = nullptr);
+    virtual ~FactPanelController();
 
-    Q_PROPERTY(QQuickItem* factPanel READ factPanel WRITE setFactPanel)
-    Q_PROPERTY(Vehicle* vehicle MEMBER _vehicle CONSTANT)
+    Q_INVOKABLE Fact *getParameterFact(int componentId, const QString &name, bool reportMissing = true) const;
+    Q_INVOKABLE bool parameterExists(int componentId, const QString &name) const;
 
-    Q_INVOKABLE Fact*   getParameterFact    (int componentId, const QString& name, bool reportMissing = true);
-    Q_INVOKABLE bool    parameterExists     (int componentId, const QString& name);
+    /// Queries the vehicle for parameters which were not available on initial download but should be available now.
+    /// Signals missingParametersAvailable when done. Only works for MAV_COMP_ID_AUTOPILOT1 parameters.
+    Q_INVOKABLE void getMissingParameters(const QStringList &rgNames);
 
-    QQuickItem* factPanel(void);
-    void setFactPanel(QQuickItem* panel);
+    bool suppressRebootMessage() const { return _rebootMessageSuppressedBy != nullptr; }
+
+    void setSuppressRebootMessage(bool suppress);
+
+signals:
+    void missingParametersAvailable();
+    void suppressRebootMessageChanged();
 
 protected:
     /// Checks for existence of the specified parameters
-    /// @return true: all parameters exists, false: parameters missing and reported
-    bool _allParametersExists(int componentId, QStringList names);
+    ///     @return true: all parameters exists, false: parameters missing and reported
+    bool _allParametersExists(int componentId, const QStringList &names) const;
 
-    /// Report a missing parameter to the FactPanel Qml element
-    void _reportMissingParameter(int componentId, const QString& name);
+    /// Report a missing parameter
+    void _reportMissingParameter(int componentId, const QString &name) const;
 
-    Vehicle*            _vehicle;
-    UASInterface*       _uas;
-    AutoPilotPlugin*    _autopilot;
+    Vehicle *_vehicle = nullptr;
 
 private slots:
-    void _checkForMissingFactPanel(void);
+    void _checkForMissingParameters();
 
 private:
-    void _notifyPanelMissingParameter(const QString& missingParam);
-    void _notifyPanelErrorMsg(const QString& errorMsg);
-    void _showInternalError(const QString& errorMsg);
-
-    QQuickItem*         _factPanel;
-    QStringList         _delayedMissingParams;
+    QStringList _missingParameterWaitList;
+    QTimer _missingParametersTimer;
+    QPointer<ParameterManager> _rebootMessageSuppressedBy;
 };
-
-#endif

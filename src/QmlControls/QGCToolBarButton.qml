@@ -1,76 +1,80 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+import QtQuick
+import QtQuick.Controls
 
+import QGroundControl
+import QGroundControl.Controls
 
-import QtQuick          2.3
-import QtQuick.Controls 1.2
+// Important Note: Toolbar buttons must manage their checked state manually in order to support
+// view switch prevention. This means they can't be checkable or autoExclusive.
 
-import QGroundControl.Controls      1.0
-import QGroundControl.Palette       1.0
-import QGroundControl.ScreenTools   1.0
+Button {
+    id:                 button
+    height:             ScreenTools.defaultFontPixelHeight * 3
+    leftPadding:        _horizontalMargin
+    rightPadding:       _horizontalMargin
+    checkable:          false
 
-Item {
-    id:     _root
-    width:  height
-    state:  "HelpShown"
-    clip:   true
+    property bool logo: false
 
-    property alias          source:         icon.source
-    property bool           checked:        false
-    property bool           logo:           false
-    property ExclusiveGroup exclusiveGroup:  null
+    property real _horizontalMargin: ScreenTools.defaultFontPixelWidth
 
-    signal clicked()
+    onCheckedChanged: checkable = false
 
-    readonly property real _topBottomMargins: ScreenTools.defaultFontPixelHeight / 2
-
-    onExclusiveGroupChanged: {
-        if (exclusiveGroup) {
-            exclusiveGroup.bindCheckable(_root)
-        }
-    }
-
-    QGCPalette { id: qgcPal }
-
-    Rectangle {
+    background: Rectangle {
         anchors.fill:   parent
-        visible:        logo
-        color:          qgcPal.brandingPurple
+        color:          button.checked ? qgcPal.accent : Qt.rgba(0,0,0,0)
+        border.color:   "red"
+        border.width:   QGroundControl.corePlugin.showTouchAreas ? 3 : 0
     }
 
-    QGCColoredImage {
-        id:                     icon
-        anchors.left:           parent.left
-        anchors.right:          parent.right
-        anchors.topMargin:      _topBottomMargins
-        anchors.top:            parent.top
-        anchors.bottomMargin:   _topBottomMargins
-        anchors.bottom:         parent.bottom
-        sourceSize.height:      parent.height
-        fillMode:               Image.PreserveAspectFit
-        color:                  logo ? "white" : (checked ? qgcPal.buttonHighlight : qgcPal.buttonText)
-    }
+    contentItem: Row {
+        spacing:                ScreenTools.defaultFontPixelWidth
+        anchors.verticalCenter: button.verticalCenter
+        // Logo buttons render the multi-color SVG natively via VectorImage; non-logo buttons
+        // tint their monochrome icon through QGCColoredImage. Plain `Row` skips visible:false items.
+        QGCVectorImage {
+            visible:                button.logo
+            height:                 ScreenTools.defaultFontPixelHeight * 2
+            width:                  height
+            source:                 visible ? button.icon.source : ""
+            anchors.verticalCenter: parent.verticalCenter
 
-    Rectangle {
-        anchors.left:   parent.left
-        anchors.right:  parent.right
-        anchors.bottom: parent.bottom
-        height:         _topBottomMargins * 0.25
-        color:          qgcPal.buttonHighlight
-        visible:        checked
-    }
+            Rectangle {
+                objectName:         "toolbar_qgcUpdateAvailableBadge"
+                z:                  1   // VectorImage adds its rendered SVG as a later child
+                anchors.top:        parent.top
+                anchors.right:      parent.right
+                anchors.topMargin:  -height * 0.25
+                anchors.rightMargin: -width * 0.25
+                width:              ScreenTools.defaultFontPixelHeight
+                height:             width
+                radius:             width / 2
+                color:              Qt.rgba(1, 1, 1, 0.75)
+                visible:            QGroundControl.newStableVersion !== ""
 
-    MouseArea {
-        anchors.fill: parent
-        onClicked: {
-            checked = true
-            _root.clicked()
+                QGCColoredImage {
+                    anchors.fill:   parent
+                    source:         "/res/UpdateAvailable.svg"
+                    color:          qgcPal.colorBlue
+                }
+            }
+        }
+        QGCColoredImage {
+            visible:                !button.logo
+            height:                 ScreenTools.defaultFontPixelHeight * 2
+            width:                  height
+            sourceSize.height:      parent.height
+            fillMode:               Image.PreserveAspectFit
+            color:                  button.checked ? qgcPal.accentText : qgcPal.textPrimary
+            source:                 visible ? button.icon.source : ""
+            anchors.verticalCenter: parent.verticalCenter
+        }
+        Label {
+            id:                     _label
+            visible:                text !== ""
+            text:                   button.text
+            color:                  button.checked ? qgcPal.accentText : qgcPal.textPrimary
+            anchors.verticalCenter: parent.verticalCenter
         }
     }
 }

@@ -1,89 +1,78 @@
-import QtQuick                  2.3
-import QtQuick.Controls         1.2
-import QtQuick.Controls.Styles  1.4
+import QtQuick
+import QtQuick.Controls
 
-import QGroundControl.Palette       1.0
-import QGroundControl.ScreenTools   1.0
+import QGroundControl
+import QGroundControl.Controls
 
 CheckBox {
-    property var __qgcPal: QGCPalette { colorGroupEnabled: enabled }
+    id:             control
+    spacing:        _noText ? 0 : ScreenTools.defaultFontPixelWidth
+    focusPolicy:    Qt.ClickFocus
+    leftPadding:    0
 
-    style: CheckBoxStyle {
-        label: Item {
-            implicitWidth:  text.implicitWidth + 2
-            implicitHeight: ScreenTools.implicitCheckBoxHeight
-            baselineOffset: text.baselineOffset
+    Component.onCompleted: {
+        if (_noText) {
+            rightPadding = 0
+        }
+    }
 
-            Rectangle {
-                anchors.margins:    -1
-                anchors.leftMargin: -3
-                anchors.rightMargin: -3
-                anchors.fill:       text
-                visible:            control.activeFocus
-                height:             6
-                radius:             3
-                color:              "#224f9fef"
-                border.color:       "#47b"
-                opacity:            0.6
-            }
+    property color  textColor:          qgcPal.textPrimary
+    property bool   textBold:           false
+    property real   textFontPointSize:  ScreenTools.defaultFontPointSize
+    property int    wrapMode:           Text.NoWrap
+    property ButtonGroup buttonGroup: null
 
-            Text {
-                id:             text
-                text:           control.text
-                antialiasing:   true
-                font.pointSize: ScreenTools.defaultFontPointSize
-                font.family:    ScreenTools.normalFontFamily
-                color:          control.__qgcPal.text
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        } // label
+    property bool _noText: text === ""
 
-        indicator:  Item {
-            implicitWidth:  ScreenTools.checkBoxIndicatorSize
-            implicitHeight: implicitWidth
+    QGCPalette { id: qgcPal; colorGroupEnabled: control.enabled }
 
-            Rectangle {
-                anchors.fill: parent
-                anchors.bottomMargin: -1
-                color: "#44ffffff"
-                radius: baserect.radius
-            }
+    onButtonGroupChanged: {
+        if (buttonGroup) {
+            buttonGroup.addButton(control)
+        }
+    }
 
-            Rectangle {
-                id: baserect
-                gradient: Gradient {
-                    GradientStop {color: "#eee" ; position: 0}
-                    GradientStop {color: control.pressed ? "#eee" : "#fff" ; position: 0.1}
-                    GradientStop {color: "#fff" ; position: 1}
-                }
-                radius: ScreenTools.defaultFontPixelHeight * 0.16
-                anchors.fill: parent
-                border.color: control.activeFocus ? "#47b" : "#999"
-            }
+    contentItem: Text {
+        //implicitWidth:  _noText ? 0 : text.implicitWidth + ScreenTools.defaultFontPixelWidth * 0.25
+        //implicitHeight: _noText ? 0 : Math.max(text.implicitHeight, ScreenTools.checkBoxIndicatorSize)
+        leftPadding:        control.indicator.width + control.spacing
+        verticalAlignment:  Text.AlignVCenter
+        text:               control.text
+        font.pointSize:     textFontPointSize
+        font.bold:          control.textBold
+        font.family:        ScreenTools.normalFontFamily
+        color:              control.textColor
+        wrapMode:           control.wrapMode
+    }
 
-            Image {
-                source: "/qmlimages/check.png"
-                opacity: control.checkedState === Qt.Checked ? control.enabled ? 1 : 0.5 : 0
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: 1
-                Behavior on opacity {NumberAnimation {duration: 80}}
-            }
+    indicator:  Rectangle {
+        implicitWidth:  ScreenTools.implicitCheckBoxHeight
+        implicitHeight: implicitWidth
+        x:              control.leftPadding
+        y:              parent.height / 2 - height / 2
+        color:          control.enabled ? "white" : "transparent"
+        border.color:   control.enabled ? qgcPal.textSecondary : qgcPal.borderSubtle
+        border.width:   1
+        radius:         ScreenTools.defaultBorderRadius
+        opacity:        control.checkedState === Qt.PartiallyChecked ? 0.5 : 1
 
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: Math.round(baserect.radius)
-                antialiasing: true
-                gradient: Gradient {
-                    GradientStop {color: control.pressed ? "#555" : "#999" ; position: 0}
-                    GradientStop {color: "#555" ; position: 1}
-                }
-                radius: baserect.radius - 1
-                anchors.centerIn: parent
-                anchors.alignWhenCentered: true
-                border.color: "#222"
-                Behavior on opacity {NumberAnimation {duration: 80}}
-                opacity: control.checkedState === Qt.PartiallyChecked ? control.enabled ? 1 : 0.5 : 0
-            }
-        } // indicator
-    } // style
+        Rectangle {
+            anchors.fill:   parent
+            color:          qgcPal.accent
+            opacity:        control.hovered ? .2 : 0
+            radius:         parent.radius
+        }
+
+        QGCColoredImage {
+            source:             "/qmlimages/checkbox-check.svg"
+            color:              qgcPal.accent
+            mipmap:             true
+            fillMode:           Image.PreserveAspectFit
+            width:              parent.implicitWidth * 0.75
+            height:             width
+            sourceSize.height:  height
+            visible:            control.checked
+            anchors.centerIn:   parent
+        }
+    }
 }

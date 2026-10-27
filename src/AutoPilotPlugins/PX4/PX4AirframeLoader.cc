@@ -1,34 +1,23 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
-
-/// @file
-///     @author Don Gagne <don@thegagnes.com>
-
 #include "PX4AirframeLoader.h"
-#include "QGCApplication.h"
+#include "AppMessages.h"
 #include "QGCLoggingCategory.h"
 #include "AirframeComponentAirframes.h"
+#include "AutoPilotPlugin.h"
 
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
 #include <QDebug>
+#include <QtCore/QXmlStreamReader>
+#include <QtCore/QSettings>
 
-QGC_LOGGING_CATEGORY(PX4AirframeLoaderLog, "PX4AirframeLoaderLog")
+QGC_LOGGING_CATEGORY(PX4AirframeLoaderLog, "AutoPilotPlugins.PX4AirframeLoader")
 
 bool PX4AirframeLoader::_airframeMetaDataLoaded = false;
 
-PX4AirframeLoader::PX4AirframeLoader(AutoPilotPlugin* autopilot, UASInterface* uas, QObject* parent)
+PX4AirframeLoader::PX4AirframeLoader(AutoPilotPlugin* autopilot, QObject* parent)
 {
     Q_UNUSED(autopilot);
-    Q_UNUSED(uas);
     Q_UNUSED(parent);
 }
 
@@ -58,7 +47,7 @@ void PX4AirframeLoader::loadAirframeMetaData(void)
     QString airframeFilename;
 
     // We want unit test builds to always use the resource based meta data to provide repeatable results
-    if (!qgcApp()->runningUnitTests()) {
+    if (!QGC::runningUnitTests()) {
         // First look for meta data that comes from a firmware download. Fall back to resource if not there.
         airframeFilename = aiframeMetaDataFile();
     }
@@ -90,7 +79,9 @@ void PX4AirframeLoader::loadAirframeMetaData(void)
 
     QString         airframeGroup;
     QString         image;
-    QString         errorString;
+    QString airframeName;
+    QString airframeClass;
+    int airframeId = 0;
     int             xmlState = XmlStateNone;
 
     while (!xml.atEnd()) {
@@ -143,7 +134,7 @@ void PX4AirframeLoader::loadAirframeMetaData(void)
                 }
                 airframeGroup = xml.attributes().value("name").toString();
                 image = xml.attributes().value("image").toString();
-                qCDebug(PX4AirframeLoaderLog) << "Found group: " << airframeGroup;
+                qCDebug(PX4AirframeLoaderLog) << "Found group: " << airframeGroup << " image:" << image;
 
             } else if (elementName == "airframe") {
                 if (xmlState != XmlStateFoundGroup) {
@@ -162,8 +153,10 @@ void PX4AirframeLoader::loadAirframeMetaData(void)
 
                 qCDebug(PX4AirframeLoaderLog) << "Found airframe name:" << name << " type:" << airframeGroup << " id:" << id;
 
-                // Now that we know type we can airframe meta data object and add it to the system
-                AirframeComponentAirframes::insert(airframeGroup, image, name, id.toInt());
+                // The class element follows, so the airframe is added to the system once it ends
+                airframeName = name;
+                airframeId = id.toInt();
+                airframeClass.clear();
 
             } else {
                 // We should be getting meta data now
@@ -171,11 +164,16 @@ void PX4AirframeLoader::loadAirframeMetaData(void)
                     qCWarning(PX4AirframeLoaderLog) << "Badly formed XML";
                     return;
                 }
+                if (elementName == "class") {
+                    airframeClass = xml.readElementText();
+                }
             }
         } else if (xml.isEndElement()) {
             QString elementName = xml.name().toString();
 
             if (elementName == "airframe") {
+                AirframeComponentAirframes::insert(airframeGroup, image, airframeName, airframeId, airframeClass);
+
                 // Reset for next airframe
                 xmlState = XmlStateFoundGroup;
             } else if (elementName == "airframe_group") {

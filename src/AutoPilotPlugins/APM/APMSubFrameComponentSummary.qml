@@ -1,20 +1,17 @@
-import QtQuick 2.3
-import QtQuick.Controls 1.2
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
-import QGroundControl.FactSystem 1.0
-import QGroundControl.FactControls 1.0
-import QGroundControl.Controls 1.0
-import QGroundControl.Controllers 1.0
-import QGroundControl.Palette 1.0
+import QGroundControl
+import QGroundControl.FactControls
+import QGroundControl.Controls
 
-FactPanel {
-    id:             panel
-    anchors.fill:   parent
-    color:          qgcPal.windowShadeDark
+Item {
+    implicitWidth: mainLayout.implicitWidth
+    implicitHeight: mainLayout.implicitHeight
+    width: parent.width  // grows when Loader is wider than implicitWidth
 
-    QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
-
-    FactPanelController { id: controller; factPanel: panel }
+    FactPanelController { id: controller; }
 
     property Fact frameFact: controller.getParameterFact(-1, "FRAME_CONFIG")
 
@@ -35,28 +32,30 @@ FactPanel {
         case 6:
             return "SimpleROV-5"
         case 7:
-            return "Custom"
+            return qsTr("Custom")
         default:
-            return "Unknown"
+            return qsTr("Unknown")
         }
     }
 
-    Column {
-        anchors.fill:       parent
+    ColumnLayout {
+        id: mainLayout
+        spacing: 0
+
         VehicleSummaryRow {
             id: nameRow;
-            labelText: qsTr("Frame Type:")
+            labelText: qsTr("Frame Type")
             valueText: frameName()
         }
 
         VehicleSummaryRow {
-            labelText: qsTr("Firmware Version:")
-            valueText: activeVehicle.firmwareMajorVersion == -1 ? qsTr("Unknown") : activeVehicle.firmwareMajorVersion + "." + activeVehicle.firmwareMinorVersion + "." + activeVehicle.firmwarePatchVersion + " " + activeVehicle.firmwareVersionTypeString
+            labelText: qsTr("Firmware Version")
+            valueText: globals.activeVehicle.firmwareMajorVersion == -1 ? qsTr("Unknown") : globals.activeVehicle.firmwareMajorVersion + "." + globals.activeVehicle.firmwareMinorVersion + "." + globals.activeVehicle.firmwarePatchVersion + " " + globals.activeVehicle.firmwareVersionTypeString
         }
 
         VehicleSummaryRow {
-            labelText: qsTr("Git Revision:")
-            valueText: activeVehicle.gitHash == -1 ? qsTr("Unknown") : activeVehicle.gitHash
+            labelText: qsTr("Git Revision")
+            valueText: globals.activeVehicle.gitHash == -1 ? qsTr("Unknown") : globals.activeVehicle.gitHash
         }
     }
 }

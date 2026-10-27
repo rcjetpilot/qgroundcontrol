@@ -1,96 +1,73 @@
-/*=====================================================================
+#pragma once
 
- QGroundControl Open Source Ground Control Station
-
- (c) 2009 - 2014 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
-
- This file is part of the QGROUNDCONTROL project
-
- QGROUNDCONTROL is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
-
- QGROUNDCONTROL is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with QGROUNDCONTROL. If not, see <http://www.gnu.org/licenses/>.
-
- ======================================================================*/
-
-/// @file
-///     @author Rustom Jehangir <rusty@bluerobotics.com>
-
-#ifndef ArduSubFirmwarePlugin_H
-#define ArduSubFirmwarePlugin_H
-
+#include "FactGroup.h"
 #include "APMFirmwarePlugin.h"
+
 class APMSubmarineFactGroup : public FactGroup
 {
     Q_OBJECT
+    Q_PROPERTY(Fact *camTilt                READ camTilt                CONSTANT)
+    Q_PROPERTY(Fact *tetherTurns            READ tetherTurns            CONSTANT)
+    Q_PROPERTY(Fact *lightsLevel1           READ lightsLevel1           CONSTANT)
+    Q_PROPERTY(Fact *lightsLevel2           READ lightsLevel2           CONSTANT)
+    Q_PROPERTY(Fact *pilotGain              READ pilotGain              CONSTANT)
+    Q_PROPERTY(Fact *inputHold              READ inputHold              CONSTANT)
+    Q_PROPERTY(Fact *rangefinderDistance    READ rangefinderDistance    CONSTANT)
+    Q_PROPERTY(Fact *rangefinderTarget      READ rangefinderTarget      CONSTANT)
 
 public:
-    APMSubmarineFactGroup(QObject* parent = NULL);
+    explicit APMSubmarineFactGroup(QObject *parent = nullptr);
+    ~APMSubmarineFactGroup();
 
-    Q_PROPERTY(Fact* camTilt       READ camTilt       CONSTANT)
-    Q_PROPERTY(Fact* tetherTurns   READ tetherTurns   CONSTANT)
-    Q_PROPERTY(Fact* lightsLevel1  READ lightsLevel1  CONSTANT)
-    Q_PROPERTY(Fact* lightsLevel2  READ lightsLevel2  CONSTANT)
-    Q_PROPERTY(Fact* pilotGain     READ pilotGain     CONSTANT)
-
-    Fact* camTilt       (void) { return &_camTiltFact; }
-    Fact* tetherTurns   (void) { return &_tetherTurnsFact; }
-    Fact* lightsLevel1  (void) { return &_lightsLevel1Fact; }
-    Fact* lightsLevel2  (void) { return &_lightsLevel2Fact; }
-    Fact* pilotGain     (void) { return &_pilotGainFact; }
-
-    static const char* _camTiltFactName;
-    static const char* _tetherTurnsFactName;
-    static const char* _lightsLevel1FactName;
-    static const char* _lightsLevel2FactName;
-    static const char* _pilotGainFactName;
-
-    static const char* _settingsGroup;
+    Fact *camTilt() { return &_camTiltFact; }
+    Fact *tetherTurns() { return &_tetherTurnsFact; }
+    Fact *lightsLevel1() { return &_lightsLevel1Fact; }
+    Fact *lightsLevel2() { return &_lightsLevel2Fact; }
+    Fact *pilotGain() { return &_pilotGainFact; }
+    Fact *inputHold() { return &_inputHoldFact; }
+    Fact *rangefinderDistance() { return &_rangefinderDistanceFact; }
+    Fact *rangefinderTarget() { return &_rangefinderTargetFact; }
 
 private:
-    Fact            _camTiltFact;
-    Fact            _tetherTurnsFact;
-    Fact            _lightsLevel1Fact;
-    Fact            _lightsLevel2Fact;
-    Fact            _pilotGainFact;
+    Fact _camTiltFact = Fact(0, QStringLiteral("cameraTilt"), FactMetaData::valueTypeDouble);
+    Fact _tetherTurnsFact = Fact(0, QStringLiteral("tetherTurns"), FactMetaData::valueTypeDouble);
+    Fact _lightsLevel1Fact = Fact(0, QStringLiteral("lights1"), FactMetaData::valueTypeDouble);
+    Fact _lightsLevel2Fact = Fact(0, QStringLiteral("lights2"), FactMetaData::valueTypeDouble);
+    Fact _pilotGainFact = Fact(0, QStringLiteral("pilotGain"), FactMetaData::valueTypeDouble);
+    Fact _inputHoldFact = Fact(0, QStringLiteral("inputHold"), FactMetaData::valueTypeDouble);
+    Fact _rollPitchToggleFact = Fact(0, QStringLiteral("rollPitchToggle"), FactMetaData::valueTypeDouble);
+    Fact _rangefinderDistanceFact = Fact(0, QStringLiteral("rangefinderDistance"), FactMetaData::valueTypeDouble);
+    Fact _rangefinderTargetFact = Fact(0, QStringLiteral("rangefinderTarget"), FactMetaData::valueTypeDouble);
 };
 
-class APMSubMode : public APMCustomMode
+/*===========================================================================*/
+
+struct APMSubMode
 {
-public:
-    enum Mode {
+    enum Mode : uint32_t {
         STABILIZE         = 0,   // Hold level position
-        RESERVED_1        = 1,
+        ACRO              = 1,   // Manual angular rate, throttle
         ALT_HOLD          = 2,   // Depth hold
-        RESERVED_3        = 3,
-        RESERVED_4        = 4,
+        AUTO              = 3,   // Full auto to waypoint
+        GUIDED            = 4,   // Full auto to coordinate/direction
         RESERVED_5        = 5,
         RESERVED_6        = 6,
-        RESERVED_7        = 7,
+        CIRCLE            = 7,   // Auto circling
         RESERVED_8        = 8,
-        RESERVED_9        = 9,
+        SURFACE           = 9,   // Auto return to surface
         RESERVED_10       = 10,
         RESERVED_11       = 11,
         RESERVED_12       = 12,
         RESERVED_13       = 13,
         RESERVED_14       = 14,
         RESERVED_15       = 15,
-        RESERVED_16       = 16,
+        POSHOLD           = 16,  // Hold position
         RESERVED_17       = 17,
         RESERVED_18       = 18,
-        MANUAL            = 19
+        MANUAL            = 19,
+        MOTORDETECTION    = 20,
+        SURFTRAK          = 21,  // Surface (seafloor) tracking, aka hold range
     };
-    static const int modeCount = 20;
-
-    APMSubMode(uint32_t mode, bool settable);
 };
 
 class ArduSubFirmwarePlugin : public APMFirmwarePlugin
@@ -98,40 +75,62 @@ class ArduSubFirmwarePlugin : public APMFirmwarePlugin
     Q_OBJECT
 
 public:
-    ArduSubFirmwarePlugin(void);
+    explicit ArduSubFirmwarePlugin(QObject *parent = nullptr);
+    ~ArduSubFirmwarePlugin();
 
-    // Overrides from FirmwarePlugin
-    int manualControlReservedButtonCount(void);
+    int defaultJoystickTXMode() const override { return 3; }
+    void initializeStreamRates(Vehicle *vehicle) override;
+    bool isCapable(const Vehicle *vehicle, FirmwareCapabilities capabilities) const override;
+    bool supportsThrottleModeCenterZero() const override { return true; }
+    bool supportsNegativeThrust(Vehicle *vehicle) const override { Q_UNUSED(vehicle); return true; }
+    bool supportsRadio() const override { return false; }
+    bool supportsJSButton() const override { return true; }
+    bool supportsMotorInterference() const override { return false; }
 
-    int defaultJoystickTXMode(void) final { return 3; }
+    /// Return the resource file which contains the vehicle icon used in the flight view when the view is dark (Satellite for instance)
+    QString vehicleImageOpaque(const Vehicle* /*vehicle*/) const override { return QStringLiteral("/qmlimages/subVehicleArrowOpaque.png"); }
 
-    bool supportsThrottleModeCenterZero(void);
+    /// Return the resource file which contains the vehicle icon used in the flight view when the view is light (Map for instance)
+    QString vehicleImageOutline(const Vehicle* vehicle) const override;
 
-    bool supportsManualControl(void);
+    const FirmwarePlugin::remapParamNameMajorVersionMap_t& paramNameRemapMajorVersionMap() const override { return _remapParamName; }
+    int remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const override;
+    bool adjustIncomingMavlinkMessage(Vehicle *vehicle, mavlink_message_t *message) override;
+    QMap<QString, FactGroup*> *factGroups() override;
+    void adjustMetaData(MAV_TYPE vehicleType, FactMetaData *metaData) override;
 
-    bool supportsRadio(void);
+    QString stabilizedFlightMode() const override;
+    QString motorDetectionFlightMode() const override;
 
-    bool supportsJSButton(void);
+    QString rtlFlightMode() const override { return QString(); }
 
-    bool supportsMotorInterference(void);
+    void updateAvailableFlightModes(FlightModeList &modeList) override;
 
-    QString brandImageIndoor(const Vehicle* vehicle) const { Q_UNUSED(vehicle); return QStringLiteral("/qmlimages/APM/BrandImageSub"); }
-    QString brandImageOutdoor(const Vehicle* vehicle) const { Q_UNUSED(vehicle); return QStringLiteral("/qmlimages/APM/BrandImageSub"); }
-    const FirmwarePlugin::remapParamNameMajorVersionMap_t& paramNameRemapMajorVersionMap(void) const final { return _remapParamName; }
-    int remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const final;
-    const QVariantList& toolBarIndicators(const Vehicle* vehicle) final;
-    bool  adjustIncomingMavlinkMessage(Vehicle* vehicle, mavlink_message_t* message);
-    virtual QMap<QString, FactGroup*>* factGroups(void);
+    QString offlineEditingParamFile(Vehicle *vehicle) const override { Q_UNUSED(vehicle); return QStringLiteral(":/FirmwarePlugin/APM/Sub.OfflineEditing.params"); }
 
+protected:
+    uint32_t _convertToCustomFlightModeEnum(uint32_t val) const override;
+
+    const QString _manualFlightMode = tr("Manual");
+    const QString _stabilizeFlightMode = tr("Stabilize");
+    const QString _acroFlightMode = tr("Acro");
+    const QString _altHoldFlightMode = tr("Depth Hold");
+    const QString _autoFlightMode = tr("Auto");
+    const QString _guidedFlightMode = tr("Guided");
+    const QString _circleFlightMode = tr("Circle");
+    const QString _surfaceFlightMode = tr("Surface");
+    const QString _posHoldFlightMode =tr("Position Hold");
+    const QString _motorDetectionFlightMode = tr("Motor Detection");
+    const QString _surftrakFlightMode = tr("Surftrak");
 
 private:
-    QVariantList _toolBarIndicators;
+    QVariantList _toolIndicators;
     static bool _remapParamNameIntialized;
-    static FirmwarePlugin::remapParamNameMajorVersionMap_t  _remapParamName;
-    void _handleNamedValueFloat(mavlink_message_t* message);
-    void _handleMavlinkMessage(mavlink_message_t* message);
+    QMap<QString, QString> _factRenameMap;
+    static FirmwarePlugin::remapParamNameMajorVersionMap_t _remapParamName;
+    void _handleNamedValueFloat(mavlink_message_t *message);
+    void _handleMavlinkMessage(mavlink_message_t *message);
 
     QMap<QString, FactGroup*> _nameToFactGroupMap;
     APMSubmarineFactGroup _infoFactGroup;
 };
-#endif

@@ -1,27 +1,25 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+#pragma once
 
-#ifndef UnitsSettings_H
-#define UnitsSettings_H
+#include <QtQmlIntegration/QtQmlIntegration>
 
 #include "SettingsGroup.h"
 
 class UnitsSettings : public SettingsGroup
 {
     Q_OBJECT
-    
+    QML_ELEMENT
+    QML_UNCREATABLE("")
 public:
-    UnitsSettings(QObject* parent = NULL);
+    UnitsSettings(QObject* parent = nullptr);
 
-    enum DistanceUnits {
-        DistanceUnitsFeet = 0,
-        DistanceUnitsMeters
+    enum HorizontalDistanceUnits {
+        HorizontalDistanceUnitsFeet = 0,
+        HorizontalDistanceUnitsMeters
+    };
+
+    enum VerticalDistanceUnits {
+        VerticalDistanceUnitsFeet = 0,
+        VerticalDistanceUnitsMeters
     };
 
     enum AreaUnits {
@@ -41,28 +39,40 @@ public:
         SpeedUnitsKnots,
     };
 
-    Q_ENUMS(DistanceUnits)
-    Q_ENUMS(AreaUnits)
-    Q_ENUMS(SpeedUnits)
+    enum TemperatureUnits {
+        TemperatureUnitsCelsius = 0,
+        TemperatureUnitsFarenheit,
+    };
 
-    Q_PROPERTY(Fact* distanceUnits                      READ distanceUnits                      CONSTANT)
-    Q_PROPERTY(Fact* areaUnits                          READ areaUnits                          CONSTANT)
-    Q_PROPERTY(Fact* speedUnits                         READ speedUnits                         CONSTANT)
+    enum WeightUnits {
+        WeightUnitsGrams = 0,
+        WeightUnitsKg,
+        WeightUnitsOz,
+        WeightUnitsLbs
+    };
 
-    Fact* distanceUnits                     (void);
-    Fact* areaUnits                         (void);
-    Fact* speedUnits                        (void);
+    enum CoordinateFormat {
+        CoordinateFormatDecimal = 0,
+        CoordinateFormatDMS,
+        CoordinateFormatUTM,
+        CoordinateFormatMGRS
+    };
 
-    static const char* unitsSettingsGroupName;
+    Q_ENUM(HorizontalDistanceUnits)
+    Q_ENUM(VerticalDistanceUnits)
+    Q_ENUM(AreaUnits)
+    Q_ENUM(SpeedUnits)
+    Q_ENUM(TemperatureUnits)
+    Q_ENUM(WeightUnits)
+    Q_ENUM(CoordinateFormat)
 
-    static const char* distanceUnitsSettingsName;
-    static const char* areaUnitsSettingsName;
-    static const char* speedUnitsSettingsName;
+    DEFINE_SETTING_NAME_GROUP()
 
-private:
-    SettingsFact* _distanceUnitsFact;
-    SettingsFact* _areaUnitsFact;
-    SettingsFact* _speedUnitsFact;
+    DEFINE_SETTINGFACT(horizontalDistanceUnits)
+    DEFINE_SETTINGFACT(verticalDistanceUnits)
+    DEFINE_SETTINGFACT(areaUnits)
+    DEFINE_SETTINGFACT(speedUnits)
+    DEFINE_SETTINGFACT(temperatureUnits)
+    DEFINE_SETTINGFACT(weightUnits)
+    DEFINE_SETTINGFACT(coordinateFormat)
 };
-
-#endif

@@ -1,15 +1,15 @@
-import QtQuick          2.3
-import QtQuick.Controls 1.2
+import QtQuick
+import QtQuick.Controls
 
-import QGroundControl.Palette       1.0
-import QGroundControl.ScreenTools   1.0
+import QGroundControl
+import QGroundControl.Controls
 
 /// File Button controls used by QGCFileDialog control
 Rectangle {
     implicitWidth:  ScreenTools.implicitButtonWidth
     implicitHeight: ScreenTools.implicitButtonHeight
-    color:          highlight ? qgcPal.buttonHighlight : qgcPal.button
-    border.color:   highlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+    color:          highlight ? qgcPal.accent : qgcPal.windowCard
+    border.color:   highlight ? qgcPal.accentText : qgcPal.textPrimary
 
     property alias  text:       label.text
     property bool   highlight:  false
@@ -30,7 +30,7 @@ Rectangle {
         anchors.bottom:         parent.bottom
         verticalAlignment:      Text.AlignVCenter
         horizontalAlignment:    Text.AlignHCenter
-        color:                  highlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+        color:                  highlight ? qgcPal.accentText : qgcPal.textPrimary
         elide:                  Text.ElideRight
     }
 
@@ -43,7 +43,7 @@ Rectangle {
         height:                 _hamburgerSize
         sourceSize.height:      _hamburgerSize
         source:                 "qrc:/qmlimages/Hamburger.svg"
-        color:                  highlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+        color:                  highlight ? qgcPal.accentText : qgcPal.textPrimary
 
         property real _hamburgerSize: parent.height * 0.75
     }

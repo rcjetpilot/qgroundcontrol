@@ -1,100 +1,117 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
 #include "ArduRoverFirmwarePlugin.h"
+#include "AppMessages.h"
+#include "Vehicle.h"
 
 bool ArduRoverFirmwarePlugin::_remapParamNameIntialized = false;
 FirmwarePlugin::remapParamNameMajorVersionMap_t ArduRoverFirmwarePlugin::_remapParamName;
 
-APMRoverMode::APMRoverMode(uint32_t mode, bool settable)
-    : APMCustomMode(mode, settable)
+ArduRoverFirmwarePlugin::ArduRoverFirmwarePlugin(QObject *parent)
+    : APMFirmwarePlugin(parent)
 {
-    QMap<uint32_t,QString> enumToString;
-    enumToString.insert(MANUAL,         "Manual");
-    enumToString.insert(LEARNING,       "Learning");
-    enumToString.insert(STEERING,       "Steering");
-    enumToString.insert(HOLD,           "Hold");
-    enumToString.insert(AUTO,           "Auto");
-    enumToString.insert(RTL,            "RTL");
-    enumToString.insert(GUIDED,         "Guided");
-    enumToString.insert(INITIALIZING,   "Initializing");
+    _setModeEnumToModeStringMapping({
+        { APMRoverMode::MANUAL       , _manualFlightMode       },
+        { APMRoverMode::ACRO         , _acroFlightMode         },
+        { APMRoverMode::LEARNING     , _learningFlightMode     },
+        { APMRoverMode::STEERING     , _steeringFlightMode     },
+        { APMRoverMode::HOLD         , _holdFlightMode         },
+        { APMRoverMode::LOITER       , _loiterFlightMode       },
+        { APMRoverMode::FOLLOW       , _followFlightMode       },
+        { APMRoverMode::SIMPLE       , _simpleFlightMode       },
+        { APMRoverMode::DOCK         , _dockFlightMode         },
+        { APMRoverMode::CIRCLE       , _circleFlightMode       },
+        { APMRoverMode::AUTO         , _autoFlightMode         },
+        { APMRoverMode::RTL          , _rtlFlightMode          },
+        { APMRoverMode::SMART_RTL    , _smartRtlFlightMode     },
+        { APMRoverMode::GUIDED       , _guidedFlightMode       },
+        { APMRoverMode::INITIALIZING , _initializingFlightMode },
+    });
 
-    setEnumToStringMapping(enumToString);
-}
-
-ArduRoverFirmwarePlugin::ArduRoverFirmwarePlugin(void)
-{
-    QList<APMCustomMode> supportedFlightModes;
-    supportedFlightModes << APMRoverMode(APMRoverMode::MANUAL       ,true);
-    supportedFlightModes << APMRoverMode(APMRoverMode::LEARNING     ,true);
-    supportedFlightModes << APMRoverMode(APMRoverMode::STEERING     ,true);
-    supportedFlightModes << APMRoverMode(APMRoverMode::HOLD         ,true);
-    supportedFlightModes << APMRoverMode(APMRoverMode::AUTO         ,true);
-    supportedFlightModes << APMRoverMode(APMRoverMode::RTL          ,true);
-    supportedFlightModes << APMRoverMode(APMRoverMode::GUIDED       ,true);
-    supportedFlightModes << APMRoverMode(APMRoverMode::INITIALIZING ,false);
-    setSupportedModes(supportedFlightModes);
+    static FlightModeList availableFlightModes = {
+        // Mode Name              , Custom Mode                CanBeSet  adv
+        { _manualFlightMode       , APMRoverMode::MANUAL       , true , true},
+        { _acroFlightMode         , APMRoverMode::ACRO         , true , true},
+        { _learningFlightMode     , APMRoverMode::LEARNING     , false, true},
+        { _steeringFlightMode     , APMRoverMode::STEERING     , true , true},
+        { _holdFlightMode         , APMRoverMode::HOLD         , true , true},
+        { _loiterFlightMode       , APMRoverMode::LOITER       , true , true},
+        { _followFlightMode       , APMRoverMode::FOLLOW       , true , true},
+        { _simpleFlightMode       , APMRoverMode::SIMPLE       , true , true},
+        { _dockFlightMode         , APMRoverMode::DOCK         , true , true},
+        { _circleFlightMode       , APMRoverMode::CIRCLE       , true , true},
+        { _autoFlightMode         , APMRoverMode::AUTO         , true , true},
+        { _rtlFlightMode          , APMRoverMode::RTL          , true , true},
+        { _smartRtlFlightMode     , APMRoverMode::SMART_RTL    , true , true},
+        { _guidedFlightMode       , APMRoverMode::GUIDED       , true , true},
+        { _initializingFlightMode , APMRoverMode::INITIALIZING , false, true},
+    };
+    updateAvailableFlightModes(availableFlightModes);
 
     if (!_remapParamNameIntialized) {
-        FirmwarePlugin::remapParamNameMap_t& remapV3_2 = _remapParamName[3][2];
+        // ArduPilot 4.7: parameter renames and SI unit conversion
+        FirmwarePlugin::remapParamNameMap_t &remapV4_7 = _remapParamName[4][7];
 
-        remapV3_2["SERVO5_FUNCTION"] = QStringLiteral("RC5_FUNCTION");
-        remapV3_2["SERVO6_FUNCTION"] = QStringLiteral("RC6_FUNCTION");
-        remapV3_2["SERVO7_FUNCTION"] = QStringLiteral("RC7_FUNCTION");
-        remapV3_2["SERVO8_FUNCTION"] = QStringLiteral("RC8_FUNCTION");
-        remapV3_2["SERVO9_FUNCTION"] = QStringLiteral("RC9_FUNCTION");
-        remapV3_2["SERVO10_FUNCTION"] = QStringLiteral("RC10_FUNCTION");
-        remapV3_2["SERVO11_FUNCTION"] = QStringLiteral("RC11_FUNCTION");
-        remapV3_2["SERVO12_FUNCTION"] = QStringLiteral("RC12_FUNCTION");
-        remapV3_2["SERVO13_FUNCTION"] = QStringLiteral("RC13_FUNCTION");
-        remapV3_2["SERVO14_FUNCTION"] = QStringLiteral("RC14_FUNCTION");
+        // EKF
+        remapV4_7["EK3_FLOW_MAX"]    = QStringLiteral("EK3_MAX_FLOW");
 
-        remapV3_2["SERVO5_MIN"] = QStringLiteral("RC5_MIN");
-        remapV3_2["SERVO6_MIN"] = QStringLiteral("RC6_MIN");
-        remapV3_2["SERVO7_MIN"] = QStringLiteral("RC7_MIN");
-        remapV3_2["SERVO8_MIN"] = QStringLiteral("RC8_MIN");
-        remapV3_2["SERVO9_MIN"] = QStringLiteral("RC9_MIN");
-        remapV3_2["SERVO10_MIN"] = QStringLiteral("RC10_MIN");
-        remapV3_2["SERVO11_MIN"] = QStringLiteral("RC11_MIN");
-        remapV3_2["SERVO12_MIN"] = QStringLiteral("RC12_MIN");
-        remapV3_2["SERVO13_MIN"] = QStringLiteral("RC13_MIN");
-        remapV3_2["SERVO14_MIN"] = QStringLiteral("RC14_MIN");
-
-        remapV3_2["SERVO5_MAX"] = QStringLiteral("RC5_MAX");
-        remapV3_2["SERVO6_MAX"] = QStringLiteral("RC6_MAX");
-        remapV3_2["SERVO7_MAX"] = QStringLiteral("RC7_MAX");
-        remapV3_2["SERVO8_MAX"] = QStringLiteral("RC8_MAX");
-        remapV3_2["SERVO9_MAX"] = QStringLiteral("RC9_MAX");
-        remapV3_2["SERVO10_MAX"] = QStringLiteral("RC10_MAX");
-        remapV3_2["SERVO11_MAX"] = QStringLiteral("RC11_MAX");
-        remapV3_2["SERVO12_MAX"] = QStringLiteral("RC12_MAX");
-        remapV3_2["SERVO13_MAX"] = QStringLiteral("RC13_MAX");
-        remapV3_2["SERVO14_MAX"] = QStringLiteral("RC14_MAX");
-
-        remapV3_2["SERVO5_REVERSED"] = QStringLiteral("RC5_REVERSED");
-        remapV3_2["SERVO6_REVERSED"] = QStringLiteral("RC6_REVERSED");
-        remapV3_2["SERVO7_REVERSED"] = QStringLiteral("RC7_REVERSED");
-        remapV3_2["SERVO8_REVERSED"] = QStringLiteral("RC8_REVERSED");
-        remapV3_2["SERVO9_REVERSED"] = QStringLiteral("RC9_REVERSED");
-        remapV3_2["SERVO10_REVERSED"] = QStringLiteral("RC10_REVERSED");
-        remapV3_2["SERVO11_REVERSED"] = QStringLiteral("RC11_REVERSED");
-        remapV3_2["SERVO12_REVERSED"] = QStringLiteral("RC12_REVERSED");
-        remapV3_2["SERVO13_REVERSED"] = QStringLiteral("RC13_REVERSED");
-        remapV3_2["SERVO14_REVERSED"] = QStringLiteral("RC14_REVERSED");
+        // Common
+        remapV4_7["ARMING_SKIPCHK"]  = QStringLiteral("ARMING_CHECK");
 
         _remapParamNameIntialized = true;
     }
 }
 
-int ArduRoverFirmwarePlugin::remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const
+ArduRoverFirmwarePlugin::~ArduRoverFirmwarePlugin()
 {
-    // Remapping supports up to 3.2
-    return majorVersionNumber == 3 ? 2 : Vehicle::versionNotSetValue;
+
 }
 
+int ArduRoverFirmwarePlugin::remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const
+{
+    return ((majorVersionNumber == 4) ? 7 : Vehicle::versionNotSetValue);
+}
+
+void ArduRoverFirmwarePlugin::guidedModeChangeAltitude(Vehicle* /*vehicle*/, double /*altitudeChange*/, bool /*pauseVehicle*/)
+{
+    QGC::showAppMessage(tr("Change altitude not supported."));
+}
+
+QString ArduRoverFirmwarePlugin::stabilizedFlightMode() const
+{
+    return _modeEnumToString.value(APMRoverMode::MANUAL, _manualFlightMode);
+}
+
+QString ArduRoverFirmwarePlugin::pauseFlightMode() const
+{
+    return _modeEnumToString.value(APMRoverMode::HOLD, _holdFlightMode);
+}
+
+QString ArduRoverFirmwarePlugin::followFlightMode() const
+{
+    return _modeEnumToString.value(APMRoverMode::FOLLOW, _followFlightMode);
+}
+
+void ArduRoverFirmwarePlugin::updateAvailableFlightModes(FlightModeList &modeList)
+{
+    for (FirmwareFlightMode &mode: modeList) {
+        mode.fixedWing = false;
+        mode.multiRotor = true;
+    }
+
+    _updateFlightModeList(modeList);
+}
+
+uint32_t ArduRoverFirmwarePlugin::_convertToCustomFlightModeEnum(uint32_t val) const
+{
+    switch (val) {
+    case APMCustomMode::AUTO:
+        return APMRoverMode::AUTO;
+    case APMCustomMode::GUIDED:
+        return APMRoverMode::GUIDED;
+    case APMCustomMode::RTL:
+        return APMRoverMode::RTL;
+    case APMCustomMode::SMART_RTL:
+        return APMRoverMode::SMART_RTL;
+    default:
+        return UINT32_MAX;
+    }
+}

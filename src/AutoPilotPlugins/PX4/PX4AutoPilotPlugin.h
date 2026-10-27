@@ -1,36 +1,27 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+#pragma once
 
-
-#ifndef PX4AUTOPILOT_H
-#define PX4AUTOPILOT_H
-
-#include "AutoPilotPlugin.h"
-#include "PX4AirframeLoader.h"
+#include "ActuatorComponent.h"
 #include "AirframeComponent.h"
-#include "PX4RadioComponent.h"
+#include "AutoPilotPlugin.h"
 #include "ESP8266Component.h"
+#include "FailureInjectionComponent.h"
 #include "FlightModesComponent.h"
-#include "SensorsComponent.h"
-#include "SafetyComponent.h"
-#include "CameraComponent.h"
-#include "PowerComponent.h"
+#include "JoystickComponent.h"
 #include "MotorComponent.h"
+#include "PX4AirframeLoader.h"
+#include "PX4BatteryComponent.h"
+#include "PX4CollisionComponent.h"
+#include "PX4EscComponent.h"
+#include "PX4FailsafesComponent.h"
+#include "PX4FlightBehavior.h"
+#include "PX4RadioComponent.h"
+#include "PX4ReturnLandComponent.h"
+#include "PX4SerialPortsComponent.h"
 #include "PX4TuningComponent.h"
+#include "SensorsComponent.h"
 #include "SyslinkComponent.h"
-#include "Vehicle.h"
 
-#include <QImage>
-
-/// @file
-///     @brief This is the PX4 specific implementation of the AutoPilot class.
-///     @author Don Gagne <don@thegagnes.com>
+class Vehicle;
 
 class PX4AutoPilotPlugin : public AutoPilotPlugin
 {
@@ -44,22 +35,29 @@ public:
     const QVariantList& vehicleComponents(void) override;
     void parametersReadyPreChecks(void) override;
     QString prerequisiteSetup(VehicleComponent* component) const override;
+
 protected:
     bool                    _incorrectParameterVersion; ///< true: parameter version incorrect, setup not allowed
     PX4AirframeLoader*      _airframeFacts;
     AirframeComponent*      _airframeComponent;
     PX4RadioComponent*      _radioComponent;
     ESP8266Component*       _esp8266Component;
+    FailureInjectionComponent* _failureInjectionComponent;
     FlightModesComponent*   _flightModesComponent;
     SensorsComponent*       _sensorsComponent;
-    SafetyComponent*        _safetyComponent;
-    CameraComponent*        _cameraComponent;
-    PowerComponent*         _powerComponent;
+    PX4ReturnLandComponent* _returnLandComponent;
+    PX4CollisionComponent* _collisionComponent;
+    PX4FailsafesComponent* _failsafesComponent;
+    PX4SerialPortsComponent* _serialPortsComponent;
+    PX4EscComponent* _escComponent;
+    PX4BatteryComponent* _batteryComponent;
     MotorComponent*         _motorComponent;
+    ActuatorComponent*      _actuatorComponent;
     PX4TuningComponent*     _tuningComponent;
+    PX4FlightBehavior*      _flightBehavior;
     SyslinkComponent*       _syslinkComponent;
+    JoystickComponent*      _joystickComponent;
+
 private:
     QVariantList            _components;
 };
-
-#endif

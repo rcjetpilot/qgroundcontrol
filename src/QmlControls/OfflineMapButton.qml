@@ -1,33 +1,30 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+import QtQuick
+import QtQuick.Controls
 
-import QtQuick          2.3
-import QtQuick.Controls 1.2
+import QGroundControl
+import QGroundControl.Controls
 
-import QGroundControl.Palette       1.0
-import QGroundControl.ScreenTools   1.0
+Button {
+    id:                 mapButton
+    height:             ScreenTools.defaultFontPixelHeight * 4
+    autoExclusive:      true
 
-Rectangle {
-    id:             mapButton
-    anchors.margins: ScreenTools.defaultFontPixelWidth
-    color:          _showHighlight ? qgcPal.buttonHighlight : qgcPal.button
-    border.width:   _showBorder ? 1: 0
-    border.color:   qgcPal.buttonText
+    background: Rectangle {
+        anchors.fill:   parent
+        color:          _showSelected ? qgcPal.accentSubtle : qgcPal.windowCard
+        border.width:   1
+        border.color:   _showHighlight ? qgcPal.accent : qgcPal.borderSubtle
+        radius:         ScreenTools.defaultBorderRadius
+    }
 
-    property bool   checked:    false
+    property var    tileSet:    null
+    property var    currentSet: null
     property bool   complete:   false
-    property alias  text:       nameLabel.text
     property int    tiles:      0
     property string size:       ""
 
-    property bool   _showHighlight: (_pressed | _hovered | checked) && !_forceHoverOff
-    property bool   _showBorder:    qgcPal.globalTheme === QGCPalette.Light
+    property bool   _showHighlight: (_pressed || _hovered || checked) && !_forceHoverOff
+    property bool   _showSelected:  (_pressed || checked) && !_forceHoverOff
 
     property bool   _forceHoverOff:    false
     property int    _lastGlobalMouseX: 0
@@ -35,16 +32,15 @@ Rectangle {
     property bool   _pressed:          false
     property bool   _hovered:          false
 
-    signal clicked()
-
-    QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
-
-    Row {
-        anchors.centerIn: parent
+    contentItem: Row {
+        anchors.centerIn:   parent
+        anchors.margins:    ScreenTools.defaultFontPixelWidth
         QGCLabel {
-            id:     nameLabel
+            text:   mapButton.text
             width:  mapButton.width * 0.4
-            color:  _showHighlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:  qgcPal.textPrimary
+            wrapMode: Text.Wrap
+            maximumLineCount: 2
             anchors.verticalCenter: parent.verticalCenter
         }
         QGCLabel {
@@ -52,7 +48,7 @@ Rectangle {
             width:  mapButton.width * 0.4
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter
-            color:  _showHighlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:  qgcPal.textPrimary
             text:   mapButton.size + (tiles > 0 ? " (" + tiles + " tiles)" : "")
         }
         Item {
@@ -78,39 +74,8 @@ Rectangle {
             source:     "/res/buttonRight.svg"
             mipmap:     true
             fillMode:   Image.PreserveAspectFit
-            color:      _showHighlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:      qgcPal.textPrimary
             anchors.verticalCenter: parent.verticalCenter
-        }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        onMouseXChanged: {
-            _lastGlobalMouseX = ScreenTools.mouseX()
-            _lastGlobalMouseY = ScreenTools.mouseY()
-        }
-        onMouseYChanged: {
-            _lastGlobalMouseX = ScreenTools.mouseX()
-            _lastGlobalMouseY = ScreenTools.mouseY()
-        }
-        onEntered:  { _hovered = true;  _forceHoverOff = false; hoverTimer.start() }
-        onExited:   { _hovered = false; _forceHoverOff = false; hoverTimer.stop()  }
-        onPressed:  { _pressed = true;  }
-        onReleased: { _pressed = false; }
-        onClicked:  mapButton.clicked()
-    }
-
-    Timer {
-        id:         hoverTimer
-        interval:   250
-        repeat:     true
-        onTriggered: {
-            if (_lastGlobalMouseX !== ScreenTools.mouseX() || _lastGlobalMouseY !== ScreenTools.mouseY()) {
-                _forceHoverOff = true
-            } else {
-                _forceHoverOff = false
-            }
         }
     }
 }

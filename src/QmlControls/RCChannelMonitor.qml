@@ -1,37 +1,24 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Dialogs
+import QtQuick.Layouts
 
+import QGroundControl
+import QGroundControl.Controls
+import QGroundControl.FactControls
 
-import QtQuick          2.3
-import QtQuick.Controls 1.2
-import QtQuick.Dialogs  1.2
-
-import QGroundControl               1.0
-import QGroundControl.Palette       1.0
-import QGroundControl.Controls      1.0
-import QGroundControl.FactControls  1.0
-import QGroundControl.ScreenTools   1.0
-import QGroundControl.Controllers   1.0
-
-FactPanel {
+Item {
     id:     _root
     height: monitorColumn.height
+
+    property bool twoColumn: false
 
     readonly property int _pwmMin:      800
     readonly property int _pwmMax:      2200
     readonly property int _pwmRange:    _pwmMax - _pwmMin
 
-    QGCPalette { id: qgcPal; colorGroupEnabled: _root.enabled }
-
     RCChannelMonitorController {
-        id:             controller
-        factPanel:      _root
+        id: controller
     }
 
     // Live channel monitor control component
@@ -39,11 +26,13 @@ FactPanel {
         id: channelMonitorDisplayComponent
 
         Item {
+            height: ScreenTools.defaultFontPixelHeight
+
             property int    rcValue:    1500
 
             property int            __lastRcValue:      1500
             readonly property int   __rcValueMaxJitter: 2
-            property color          __barColor:         qgcPal.windowShade
+            property color          __barColor:         qgcPal.windowCard
 
             // Bar
             Rectangle {
@@ -57,7 +46,7 @@ FactPanel {
             // Center point
             Rectangle {
                 anchors.horizontalCenter:   parent.horizontalCenter
-                width:                      ScreenTools.defaultTextWidth / 2
+                width:                      ScreenTools.defaultFontPixelWidth / 2
                 height:                     parent.height
                 color:                      qgcPal.window
             }
@@ -69,7 +58,7 @@ FactPanel {
                 height:                 width
                 x:                      (((reversed ? _pwmMax - rcValue : rcValue - _pwmMin) / _pwmRange) * parent.width) - (width / 2)
                 radius:                 width / 2
-                color:                  qgcPal.text
+                color:                  qgcPal.textPrimary
                 visible:                mapped
             }
 
@@ -77,7 +66,7 @@ FactPanel {
                 anchors.fill:           parent
                 horizontalAlignment:    Text.AlignHCenter
                 verticalAlignment:      Text.AlignVCenter
-                text:                   "Not Mapped"
+                text:                   qsTr("Not Mapped")
                 visible:                !mapped
             }
 
@@ -92,17 +81,20 @@ FactPanel {
         }
     } // Component - channelMonitorDisplayComponent
 
-    Column {
+    GridLayout {
         id:         monitorColumn
         width:      parent.width
-        spacing:    ScreenTools.defaultFontPixelHeight / 2
+        columns:    twoColumn ? 2 : 1
 
-        QGCLabel { text: "Channel Monitor" }
+        QGCLabel {
+            Layout.columnSpan:  parent.columns
+            text:               qsTr("Channel Monitor")
+        }
 
         Connections {
             target: controller
 
-            onChannelRCValueChanged: {
+            function onChannelValueChanged(channel, rcValue) {
                 if (channelMonitorRepeater.itemAt(channel)) {
                     channelMonitorRepeater.itemAt(channel).loader.item.rcValue = rcValue
                 }
@@ -110,13 +102,10 @@ FactPanel {
         }
 
         Repeater {
-            id:         channelMonitorRepeater
-            model:      controller.channelCount
+            id:     channelMonitorRepeater
+            model:  controller.channelCount
 
-            Item {
-                width:  monitorColumn.width
-                height: ScreenTools.defaultFontPixelHeight
-
+            RowLayout {
                 // Need this to get to loader from Connections above
                 property Item loader: theLoader
 
@@ -126,12 +115,10 @@ FactPanel {
                 }
 
                 Loader {
-                    id:                     theLoader
-                    anchors.leftMargin:     ScreenTools.defaultFontPixelWidth / 2
-                    anchors.left:           channelLabel.right
-                    anchors.verticalCenter: channelLabel.verticalCenter
-                    height:                 ScreenTools.defaultFontPixelHeight
-                    width:                  parent.width - anchors.leftMargin - ScreenTools.defaultFontPixelWidth
+                    id:                 theLoader
+                    Layout.fillWidth:   true
+                    //height:                 ScreenTools.defaultFontPixelHeight
+                    //width:                  parent.width - anchors.leftMargin - ScreenTools.defaultFontPixelWidth
                     sourceComponent:        channelMonitorDisplayComponent
 
                     property bool mapped:               true

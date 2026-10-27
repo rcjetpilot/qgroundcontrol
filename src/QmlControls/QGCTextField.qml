@@ -1,33 +1,46 @@
-import QtQuick                  2.3
-import QtQuick.Controls         1.2
-import QtQuick.Controls.Styles  1.4
-import QtQuick.Layouts          1.2
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
-import QGroundControl.Palette       1.0
-import QGroundControl.ScreenTools   1.0
+import QGroundControl
+import QGroundControl.Controls
 
 TextField {
-    id: root
+    id:                 control
+    color:              qgcPal.textPrimary
+    placeholderTextColor: qgcPal.textSecondary
+    selectionColor:     qgcPal.accent
+    selectedTextColor:  qgcPal.accentText
+    activeFocusOnPress: true
+    antialiasing:       true
+    font.pointSize:     ScreenTools.defaultFontPointSize
+    font.family:        ScreenTools.normalFontFamily
+    inputMethodHints:   numericValuesOnly && !ScreenTools.isiOS ?
+                            Qt.ImhFormattedNumbersOnly:  // Forces use of virtual numeric keyboard instead of full keyboard
+                            Qt.ImhNone                   // iOS numeric keyboard has no done button, we can't use it.
+    leftPadding:        _marginPadding
+    rightPadding:       _marginPadding + unitsHelpLayout.width
+    topPadding:         ScreenTools.controlVerticalPadding
+    bottomPadding:      ScreenTools.controlVerticalPadding
+    EnterKey.type:      Qt.EnterKeyDone
 
-    property bool   showUnits:  false
-    property bool   showHelp:   false
-    property string unitsLabel: ""
+    property bool   showUnits:          false
+    property bool   showHelp:           false
+    property string unitsLabel:         ""
+    property string extraUnitsLabel:    ""
+    property bool   numericValuesOnly:  false   // true: Used as hint for mobile devices to show numeric only keyboard
+    property alias  textColor:          control.color
+    property bool   validationError:    false
+
+    property real _helpLayoutWidth: 0
+    property real _marginPadding:   ScreenTools.defaultFontPixelHeight / 3
 
     signal helpClicked
 
-    property real _helpLayoutWidth: 0
-
-    Component.onCompleted: {
-        if (typeof qgcTextFieldforwardKeysTo !== 'undefined') {
-            root.Keys.forwardTo = [qgcTextFieldforwardKeysTo]
-        }
-    }
+    Component.onCompleted: checkActiveFocus()
+    onActiveFocusChanged: checkActiveFocus()
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
-
-    textColor:          qgcPal.textFieldText
-
-    implicitHeight: ScreenTools.implicitTextFieldHeight
 
     onEditingFinished: {
         if (ScreenTools.isMobile) {
@@ -36,88 +49,127 @@ TextField {
         }
     }
 
-    QGCLabel {
-        id:             unitsLabelWidthGenerator
-        text:           unitsLabel
-        width:          contentWidth + parent.__contentHeight * 0.666
-        visible:        false
-        antialiasing:   true
-    }
-
-    style: TextFieldStyle {
-        font.pointSize: ScreenTools.defaultFontPointSize
-        background: Item {
-            id: backgroundItem
-
-            property bool showHelp: control.showHelp && control.activeFocus
-
-            Rectangle {
-                anchors.fill:           parent
-                anchors.bottomMargin:   -1
-                color:                  "#44ffffff"
-            }
-
-            Rectangle {
-                anchors.fill:           parent
-                border.color:           control.activeFocus ? "#47b" : "#999"
-                color:                  qgcPal.textField
-            }
-
-            RowLayout {
-                id:                     unitsHelpLayout
-                anchors.top:            parent.top
-                anchors.bottom:         parent.bottom
-                anchors.rightMargin:    backgroundItem.showHelp ? 0 : control.__contentHeight * 0.333
-                anchors.right:          parent.right
-                spacing:                4
-
-                Component.onCompleted:  control._helpLayoutWidth = unitsHelpLayout.width
-                onWidthChanged:         control._helpLayoutWidth = unitsHelpLayout.width
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:                   control.unitsLabel
-                    font.pointSize:         backgroundItem.showHelp ? ScreenTools.smallFontPointSize : ScreenTools.defaultFontPointSize
-                    font.family:            ScreenTools.normalFontFamily
-                    antialiasing:           true
-                    color:                  control.textColor
-                    visible:                control.showUnits
-                }
-
-                Rectangle {
-                    anchors.margins:    2
-                    anchors.top:        parent.top
-                    anchors.bottom:     parent.bottom
-                    anchors.right:      parent.right
-                    width:              height * 0.75
-                    color:              control.textColor
-                    radius:             2
-                    visible:            backgroundItem.showHelp
-
-                    QGCLabel {
-                        anchors.fill:           parent
-                        verticalAlignment:      Text.AlignVCenter
-                        horizontalAlignment:    Text.AlignHCenter
-                        color:                  qgcPal.textField
-                        text:                   "?"
-                    }
-                }
-            }
-
-            MouseArea {
-                anchors.margins:    ScreenTools.isMobile ? -(ScreenTools.defaultFontPixelWidth * 0.66) : 0 // Larger touch area for mobile
-                anchors.fill:       unitsHelpLayout
-                enabled:            control.activeFocus
-                onClicked:          root.helpClicked()
-            }
-        }
-
-        padding.right: control._helpLayoutWidth //control.showUnits ? unitsLabelWidthGenerator.width : control.__contentHeight * 0.333
-    }
-
-    onActiveFocusChanged: {
+    function checkActiveFocus() {
         if (activeFocus) {
             selectAll()
+            if (validationError) {
+                validationToolTip.visible = true
+            }
+        } else {
+            validationToolTip.visible = false
         }
+    }
+
+    function showValidationError(errorString, originalValidValue = undefined, preventViewSiwtch = true) {
+        validationToolTip.text = errorString
+        validationToolTip.originalValidValue = originalValidValue
+        validationToolTip.visible = true
+        if (!validationError) {
+            validationError = true
+            if (preventViewSiwtch) {
+                globals.validationErrorCount++
+            }
+        }
+    }
+
+    function clearValidationError(preventViewSiwtch = true) {
+        validationToolTip.visible = false
+        validationToolTip.originalValidValue = undefined
+        if (validationError) {
+            validationError = false
+            if (preventViewSiwtch) {
+                globals.validationErrorCount--
+            }
+        }
+    }
+
+    background: Rectangle {
+        border.width:   control.validationError ? 2 : 1
+        border.color:   control.validationError ? qgcPal.colorRed : (control.activeFocus ? qgcPal.accent : qgcPal.borderSubtle)
+        radius:         ScreenTools.defaultBorderRadius
+        color:          qgcPal.windowInset
+        implicitWidth:  ScreenTools.implicitTextFieldWidth
+        implicitHeight: ScreenTools.implicitTextFieldHeight
+
+        RowLayout {
+            id:                     unitsHelpLayout
+            anchors.top:            parent.top
+            anchors.bottom:         parent.bottom
+            anchors.right:          parent.right
+            anchors.rightMargin:    control.activeFocus ? 2 : control._marginPadding
+            spacing:                ScreenTools.defaultFontPixelWidth / 4
+            layoutDirection:        Qt.RightToLeft
+
+            Component.onCompleted:  control._helpLayoutWidth = unitsHelpLayout.width
+            onWidthChanged:         control._helpLayoutWidth = unitsHelpLayout.width
+
+            // Help button
+            Rectangle {
+                id:                     helpButton
+                Layout.margins:         2
+                Layout.leftMargin:      0
+                Layout.rightMargin:     1
+                Layout.fillHeight:      true
+                Layout.preferredWidth:  helpLabel.contentWidth * 3
+                Layout.alignment:       Qt.AlignVCenter
+                color:                  control.color
+                visible:                control.showHelp && control.activeFocus
+
+                QGCLabel {
+                    id:                 helpLabel
+                    anchors.centerIn:   parent
+                    color:              qgcPal.windowInset
+                    text:               qsTr("?")
+                }
+
+            }
+
+            // Extra units
+            Text {
+                Layout.alignment:   Qt.AlignVCenter
+                text:               control.extraUnitsLabel
+                font.pointSize:     ScreenTools.smallFontPointSize
+                font.family:        ScreenTools.normalFontFamily
+                antialiasing:       true
+                color:              qgcPal.textSecondary
+                visible:            control.showUnits && text !== ""
+            }
+
+            // Units
+            Text {
+                Layout.alignment:   Qt.AlignVCenter
+                text:               control.unitsLabel
+                font.pointSize:     control.activeFocus ? ScreenTools.smallFontPointSize : ScreenTools.defaultFontPointSize
+                font.family:        ScreenTools.normalFontFamily
+                antialiasing:       true
+                color:              qgcPal.textSecondary
+                visible:            control.showUnits && text !== ""
+            }
+        }
+    }
+
+    ToolTip {
+        id: validationToolTip
+
+        property var originalValidValue: undefined
+
+        QGCMouseArea {
+            anchors.fill: parent
+            onClicked: {
+                if (validationToolTip.originalValidValue !== undefined) {
+                    control.text = validationToolTip.originalValidValue
+                    control.clearValidationError()
+                }
+            }
+        }
+    }
+
+    MouseArea {
+        anchors.top:    parent.top
+        anchors.bottom: parent.bottom
+        anchors.right:  parent.right
+        width:          control._helpLayoutWidth
+        enabled:        helpButton.visible
+        onClicked:      control.helpClicked()
     }
 }

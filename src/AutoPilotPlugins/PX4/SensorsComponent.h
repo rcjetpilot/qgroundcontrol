@@ -1,48 +1,54 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
-
-
-#ifndef SENSORSCOMPONENT_H
-#define SENSORSCOMPONENT_H
+#pragma once
 
 #include "VehicleComponent.h"
 
-/// @file
-///     @brief The Sensors VehicleComponent is used to calibrate the the various sensors associated with the board.
-///     @author Don Gagne <don@thegagnes.com>
+class Fact;
 
 class SensorsComponent : public VehicleComponent
 {
     Q_OBJECT
-    
+
 public:
-    SensorsComponent(Vehicle* vehicle, AutoPilotPlugin* autopilot, QObject* parent = NULL);
-    
+    SensorsComponent(Vehicle* vehicle, AutoPilotPlugin* autopilot, QObject* parent = nullptr);
+
+    Q_PROPERTY(bool airspeedCalSupported    READ _airspeedCalSupported  STORED false NOTIFY setupCompleteChanged)
+    Q_PROPERTY(bool airspeedCalRequired     READ _airspeedCalRequired   STORED false NOTIFY setupCompleteChanged)
+
     // Virtuals from VehicleComponent
     QStringList setupCompleteChangedTriggerList(void) const override;
-    
+
     // Virtuals from VehicleComponent
     virtual QString name(void) const override;
     virtual QString description(void) const override;
+    QStringList searchKeywords() const override;
     virtual QString iconResource(void) const override;
     virtual bool requiresSetup(void) const override;
+
+    virtual int setupOrder() const override { return 1; }
     virtual bool setupComplete(void) const override;
     virtual QUrl setupSource(void) const override;
-    virtual QUrl summaryQmlSource(void) const override;
-    
+
+    virtual QUrl summaryQmlSource(void) const override { return QUrl(); }
+
+    QList<VehicleSummaryItem> summaryItems() const override;
+    QStringList summaryChangedTriggerList() const override;
+
 private:
-    const QString   _name;
-    QVariantList    _summaryItems;
+    bool _airspeedCalSupported  (void) const;
+    bool _airspeedCalRequired   (void) const;
+    bool _airspeedVehicle(void) const;
+    bool _airspeedLegacyFirmware(void) const;
+    bool _airspeedParamExists(const char* name) const;
+    Fact* _airspeedParam(const char* name) const;
+
+    const QString _name;
     QStringList     _deviceIds;
 
-    static const char* _airspeedBreaker;
-    static const char* _airspeedCal;
+    static constexpr const char* _airspeedCalParam = "SENS_DPRES_OFF";
+    static constexpr const char* _airspeedPresentParam = "SYS_HAS_NUM_ASPD";
+    static constexpr const char* _airspeedModeParam = "FW_ARSP_MODE";
+    static constexpr const char* _airspeedCheckBreakerParam = "CBRK_AIRSPD_CHK";
+    static constexpr int _airspeedCheckBreakerDisabled = 162128;
+    static constexpr const char* _magEnabledParam = "SYS_HAS_MAG";
+    static constexpr const char* _magCalParam = "CAL_MAG0_ID";
 };
-
-#endif

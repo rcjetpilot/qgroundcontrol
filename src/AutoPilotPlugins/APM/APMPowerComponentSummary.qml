@@ -1,43 +1,56 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
+import QGroundControl
+import QGroundControl.FactControls
+import QGroundControl.Controls
 
-import QtQuick          2.3
-import QtQuick.Controls 1.2
+Item {
+    implicitWidth: mainLayout.implicitWidth
+    implicitHeight: mainLayout.implicitHeight
+    width: parent.width  // grows when Loader is wider than implicitWidth
 
-import QGroundControl.FactSystem    1.0
-import QGroundControl.FactControls  1.0
-import QGroundControl.Controls      1.0
-import QGroundControl.Palette       1.0
+    FactPanelController { id: controller }
 
-FactPanel {
-    id:             panel
-    anchors.fill:   parent
-    color:          qgcPal.windowShadeDark
+    APMBatteryParams {
+        id:             battParams
+        controller:     controller
+        batteryIndex:   0
+    }
 
-    QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
-    FactPanelController { id: controller; factPanel: panel }
+    ColumnLayout {
+        id: mainLayout
+        width: parent.width
+        spacing: 0
 
-    property Fact battCapacity: controller.getParameterFact(-1, "BATT_CAPACITY")
-    property Fact battMonitor:  controller.getParameterFact(-1, "BATT_MONITOR")
+        Repeater {
+            model: battParams.getBatteryCount()
 
-    Column {
-        anchors.fill:       parent
+            delegate: ColumnLayout {
+                Layout.fillWidth: true
+                required property int index
+                spacing: 0
+                visible: _monitorEnabled
 
-        VehicleSummaryRow {
-            labelText: qsTr("Battery monitor:")
-            valueText: battMonitor.enumStringValue
-        }
+                property string _prefix:            battParams.prefixForIndex(index)
+                property string _label:             battParams.labelForIndex(index)
+                property Fact   _monitor:           controller.getParameterFact(-1, _prefix + "MONITOR")
+                property bool   _monitorEnabled:    _monitor.rawValue !== 0
+                property bool   _capacityAvailable: controller.parameterExists(-1, _prefix + "CAPACITY")
+                property Fact   _capacity:          _capacityAvailable ? controller.getParameterFact(-1, _prefix + "CAPACITY") : null
 
-        VehicleSummaryRow {
-            labelText: qsTr("Battery capacity:")
-            valueText: battCapacity.valueString + " " + battCapacity.units
+                VehicleSummaryRow {
+                    labelText: qsTr("Batt%1 monitor").arg(_label)
+                    valueText: _monitor.enumStringValue
+                }
+
+                VehicleSummaryRow {
+                    labelText: qsTr("Batt%1 capacity").arg(_label)
+                    valueText: _capacity ? _capacity.valueString + " " + _capacity.units : ""
+                    visible:   _capacityAvailable
+                }
+            }
         }
     }
 }

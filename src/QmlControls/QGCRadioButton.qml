@@ -1,65 +1,57 @@
-import QtQuick                  2.3
-import QtQuick.Controls         1.2
-import QtQuick.Controls.Styles  1.4
+import QtQuick
+import QtQuick.Controls
 
-import QGroundControl.Palette       1.0
-import QGroundControl.ScreenTools   1.0
+import QGroundControl
+import QGroundControl.Controls
 
 RadioButton {
-    property var    color:          qgcPal.text    ///< Text color
-    property int    textStyle:      Text.Normal
-    property color  textStyleColor: qgcPal.text
-    property var    qgcPal:         QGCPalette { colorGroupEnabled: enabled }
+    id:             control
+    font.family:    ScreenTools.normalFontFamily
+    font.pointSize: ScreenTools.defaultFontPointSize
 
-    style: RadioButtonStyle {
-        label: Item {
-            implicitWidth:          text.implicitWidth + ScreenTools.defaultFontPixelWidth * 0.25
-            implicitHeight:         ScreenTools.implicitRadioButtonHeight
-            baselineOffset:         text.y + text.baselineOffset
+    property color  textColor:  qgcPal.textPrimary
+    property int    wrapMode:   Text.NoWrap
+    property bool   _noText:    text === ""
 
-            Rectangle {
-                anchors.fill:       text
-                anchors.margins:    -1
-                anchors.leftMargin: -3
-                anchors.rightMargin:-3
-                visible:            control.activeFocus
-                height:             ScreenTools.defaultFontPixelWidth * 0.25
-                radius:             height * 0.5
-                color:              "#224f9fef"
-                border.color:       "#47b"
-                opacity:            0.6
-            }
+    QGCPalette { id:qgcPal; colorGroupEnabled: enabled }
 
-            Text {
-                id:                 text
-                text:               control.text
-                font.pointSize:     ScreenTools.defaultFontPointSize
-                font.family:        ScreenTools.normalFontFamily
-                antialiasing:       true
-                color:              control.color
-                style:              control.textStyle
-                styleColor:         control.textStyleColor
-                anchors.centerIn:   parent
-            }
+    indicator: Rectangle {
+        implicitWidth:          ScreenTools.radioButtonIndicatorSize
+        implicitHeight:         width
+        color:                  control.enabled ? "white" : "transparent"
+        border.color:           control.enabled ? qgcPal.textSecondary : qgcPal.borderSubtle
+        radius:                 height / 2
+        x:                      control.leftPadding
+        y:                      parent.height / 2 - height / 2
+
+        Rectangle {
+            anchors.fill:   parent
+            color:          qgcPal.accent
+            opacity:        control.hovered ? .2 : 0
+            radius:         parent.radius
         }
 
-        indicator: Rectangle {
-            width:          ScreenTools.radioButtonIndicatorSize
-            height:         width
-            color:          "white"
-            border.color:   control.qgcPal.text
-            antialiasing:   true
-            radius:         height / 2
-
-            Rectangle {
-                anchors.centerIn:   parent
-                width:              Math.round(parent.width * 0.5)
-                height:             width
-                antialiasing:       true
-                radius:             height / 2
-                color:              "black"
-                opacity:            control.checked ? (control.enabled ? 1 : 0.5) : 0
-            }
+        Rectangle {
+            anchors.centerIn:   parent
+            // Width should be an odd number to be centralized by the parent properly
+            width:              2 * Math.floor(parent.width / 4) + 1
+            height:             width
+            antialiasing:       true
+            radius:             height * 0.5
+            color:              qgcPal.accent
+            visible:            control.checked
         }
     }
+
+    contentItem: Text {
+        text:               control.text
+        font.family:        control.font.pointSize
+        font.pointSize:     control.font.pointSize
+        font.bold:          control.font.bold
+        color:              control.textColor
+        wrapMode:           control.wrapMode
+        verticalAlignment:  Text.AlignVCenter
+        leftPadding:        control.indicator.width + (_noText ? 0 : ScreenTools.defaultFontPixelWidth * 0.25)
+    }
+
 }

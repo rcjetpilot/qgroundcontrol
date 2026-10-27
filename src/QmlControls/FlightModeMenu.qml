@@ -1,25 +1,16 @@
-/****************************************************************************
- *
- *   (c) 2009-2016 QGROUNDCONTROL PROJECT <http://www.qgroundcontrol.org>
- *
- * QGroundControl is licensed according to the terms in the file
- * COPYING.md in the root of the source code directory.
- *
- ****************************************************************************/
+import QtQuick
+import QtQuick.Controls
 
-import QtQuick          2.3
-import QtQuick.Controls 1.2
-
-import QGroundControl               1.0
-import QGroundControl.Controls      1.0
-import QGroundControl.ScreenTools   1.0
+import QGroundControl
+import QGroundControl.Controls
 
 // Label control whichs pop up a flight mode change menu when clicked
 QGCLabel {
-    id:     flightModeMenuLabel
-    text:   activeVehicle ? activeVehicle.flightMode : qsTr("N/A", "No data to display")
+    id:     _root
+    text:   currentVehicle ? currentVehicle.flightMode : qsTr("N/A", "No data to display")
 
-    property var activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
+    property var    currentVehicle:         QGroundControl.multiVehicleManager.activeVehicle
+    property real   mouseAreaLeftMargin:    0
 
     Menu {
         id: flightModesMenu
@@ -29,38 +20,47 @@ QGCLabel {
         id: flightModeMenuItemComponent
 
         MenuItem {
-            onTriggered: activeVehicle.flightMode = text
+            enabled: true
+            onTriggered: currentVehicle.flightMode = text
         }
     }
 
     property var flightModesMenuItems: []
 
     function updateFlightModesMenu() {
-        if (activeVehicle && activeVehicle.flightModeSetAvailable) {
+        if (currentVehicle && currentVehicle.flightModeSetAvailable) {
+            var i;
             // Remove old menu items
-            for (var i = 0; i < flightModesMenuItems.length; i++) {
+            for (i = 0; i < flightModesMenuItems.length; i++) {
                 flightModesMenu.removeItem(flightModesMenuItems[i])
             }
             flightModesMenuItems.length = 0
             // Add new items
-            for (var i = 0; i < activeVehicle.flightModes.length; i++) {
-                var menuItem = flightModeMenuItemComponent.createObject(null, { "text": activeVehicle.flightModes[i] })
+            for (i = 0; i < currentVehicle.flightModes.length; i++) {
+                var menuItem = flightModeMenuItemComponent.createObject(null, { "text": currentVehicle.flightModes[i] })
                 flightModesMenuItems.push(menuItem)
                 flightModesMenu.insertItem(i, menuItem)
             }
         }
     }
 
-    Component.onCompleted: flightModeMenuLabel.updateFlightModesMenu()
+    Component.onCompleted: _root.updateFlightModesMenu()
 
     Connections {
         target:                 QGroundControl.multiVehicleManager
-        onActiveVehicleChanged: flightModeMenuLabel.updateFlightModesMenu()
+        function onActiveVehicleChanged(activeVehicle) { _root.updateFlightModesMenu() }
+    }
+
+    Connections {
+        target: currentVehicle
+        function onFlightModesChanged() { _root.updateFlightModesMenu() }
     }
 
     MouseArea {
-        visible:        activeVehicle && activeVehicle.flightModeSetAvailable
-        anchors.fill:   parent
-        onClicked:      flightModesMenu.popup()
+        id:                 mouseArea
+        visible:            currentVehicle && currentVehicle.flightModeSetAvailable
+        anchors.leftMargin: mouseAreaLeftMargin
+        anchors.fill:       parent
+        onClicked:          flightModesMenu.popup((_root.width - flightModesMenu.width) / 2, _root.height)
     }
 }

@@ -1,10 +1,8 @@
-import QtQuick                  2.3
-import QtQuick.Controls         1.2
-import QtQuick.Controls.Styles  1.4
+import QtQuick
+import QtQuick.Controls
 
-import QGroundControl               1.0
-import QGroundControl.ScreenTools   1.0
-import QGroundControl.Palette       1.0
+import QGroundControl
+import QGroundControl.Controls
 
 Item {
     id: _root
@@ -17,7 +15,7 @@ Item {
     property int    dropDirection:      dropDown
     property alias  dropDownComponent:  dropDownLoader.sourceComponent
     property real   viewportMargins:    0
-    property real   topMargin:          parent.height - ScreenTools.availableHeight
+    property real   topMargin:          parent.height - mainWindow.height
     property alias  lightBorders:       roundButton.lightBorders
 
     width:  radius * 2
@@ -41,14 +39,14 @@ Item {
     property real   _viewportMaxTop:    -y + viewportMargins + topMargin
     property real   _viewportMaxBottom: parent.height - (viewportMargins * 2) - y
 
-    // Set up ExclusiveGroup support. We use the checked property to drive visibility of drop down.
+    // Set up ButtonGroup support. We use the checked property to drive visibility of drop down.
 
     property alias checked: roundButton.checked
-    property ExclusiveGroup exclusiveGroup: null
 
-    onExclusiveGroupChanged: {
-        if (exclusiveGroup) {
-            exclusiveGroup.bindCheckable(_root)
+    property ButtonGroup buttonGroup: null
+    onButtonGroupChanged: {
+        if (buttonGroup) {
+            buttonGroup.addButton(_root)
         }
     }
 
@@ -158,7 +156,7 @@ Item {
         }
     }
 
-    RoundButton {
+    QGCRoundButton {
         id:             roundButton
         radius:         parent.width / 2
         onClicked:  {
@@ -175,9 +173,9 @@ Item {
             id:             arrowCanvas
             anchors.fill:   parent
 
-            property var arrowPoint: Qt.point(0, 0)
-            property var arrowBase1: Qt.point(0, 0)
-            property var arrowBase2: Qt.point(0, 0)
+            property point arrowPoint: Qt.point(0, 0)
+            property point arrowBase1: Qt.point(0, 0)
+            property point arrowBase2: Qt.point(0, 0)
 
             onPaint: {
                 var context = getContext("2d")
@@ -211,7 +209,7 @@ Item {
                 context.lineTo(dropItemHolderRect.x, dropItemHolderRect.y)
 
                 context.closePath()
-                context.fillStyle = qgcPal.windowShade
+                context.fillStyle = qgcPal.windowCard
                 context.fill()
             }
         } // Canvas - arrowCanvas
